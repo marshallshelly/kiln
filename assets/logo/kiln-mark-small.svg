@@ -1,0 +1,7 @@
+<!-- Optical size for 24px and below: two rings instead of three.
+     Use this for the favicon, the tray icon, and any nav-bar mark. -->
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Kiln">
+  <path d="M14 81 V56 a36 36 0 0 1 72 0 V81"
+        fill="none" stroke="currentColor" stroke-width="11" stroke-linecap="butt"/>
+  <path d="M37 81 V56 a13 13 0 0 1 26 0 V81 Z" fill="#F5A93C"/>
+</svg>

@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en" data-bg="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kiln — mark</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --amber:#F5A93C; --fg:#F4E7D3; --bg:#0B1226; --card:#131E3D;
+    --line:#22315C; --muted:#8FA0C4;
+  }
+  html[data-bg="light"]{--fg:#141A26;--bg:#EFE9DE;--card:#F8F4EC;--line:#DCD3C4;--muted:#6C6355}
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--fg);
+    font-family:"JetBrains Mono",ui-monospace,monospace;font-size:13px;line-height:1.65;
+    background-image:radial-gradient(900px 500px at 82% -12%,rgba(245,169,60,.10),transparent 62%);
+    transition:background-color .35s,color .35s;
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:72px 32px 120px}
+  header{display:flex;justify-content:space-between;align-items:flex-end;gap:28px;flex-wrap:wrap;
+    border-bottom:1px solid var(--line);padding-bottom:30px}
+  h1{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:60px;line-height:.95;
+    margin:0 0 8px;letter-spacing:-.01em}
+  h1 em{font-style:italic;color:var(--amber)}
+  h2{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:30px;margin:0 0 6px}
+  p{margin:0;color:var(--muted);max-width:60ch}
+  .toggle{border:1px solid var(--line);background:transparent;color:var(--fg);font:inherit;
+    padding:9px 16px;border-radius:999px;cursor:pointer;transition:border-color .2s,color .2s}
+  .toggle:hover{border-color:var(--amber);color:var(--amber)}
+
+  section{margin-top:64px;animation:rise .55s cubic-bezier(.2,.8,.2,1) backwards}
+  section:nth-of-type(2){animation-delay:.06s} section:nth-of-type(3){animation-delay:.12s}
+  section:nth-of-type(4){animation-delay:.18s} section:nth-of-type(5){animation-delay:.24s}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}}
+
+  .hero{background:var(--card);border:1px solid var(--line);border-radius:22px;
+    display:grid;place-items:center;padding:64px 24px;margin-top:44px}
+  .hero svg{width:190px;height:190px;color:var(--fg)}
+
+  .row{display:flex;align-items:flex-end;gap:38px;flex-wrap:wrap;margin-top:26px;color:var(--fg)}
+  .step{text-align:center}
+  .step svg{display:block;margin:0 auto 10px}
+  .step .tag{color:var(--muted);font-size:10px;letter-spacing:.09em}
+  .s64{width:64px;height:64px} .s32{width:32px;height:32px}
+  .s24{width:24px;height:24px} .s16{width:16px;height:16px}
+  .rule{margin-top:22px;padding:14px 18px;border-left:2px solid var(--amber);
+    background:color-mix(in srgb,var(--amber) 8%,transparent);color:var(--fg)}
+
+  .lockrow{display:flex;align-items:center;gap:52px;flex-wrap:wrap;margin-top:28px;color:var(--fg)}
+  .lock{display:flex;align-items:center;gap:15px}
+  .lock svg{width:44px;height:44px}
+  .lock .word{font-family:"Instrument Serif",Georgia,serif;font-size:38px}
+  .lock.sm svg{width:24px;height:24px} .lock.sm .word{font-size:21px}
+
+  .sw{display:flex;gap:14px;flex-wrap:wrap;margin-top:26px}
+  .chip{border:1px solid var(--line);border-radius:14px;padding:14px 18px;min-width:168px}
+  .dot{width:26px;height:26px;border-radius:8px;display:block;margin-bottom:10px}
+  .chip b{font-weight:500;display:block;font-size:12px}
+  .chip span{color:var(--muted);font-size:11px}
+
+  ul{margin:20px 0 0;padding-left:20px;color:var(--muted)}
+  li{margin-bottom:7px}
+  li b{color:var(--fg);font-weight:500}
+  code{color:var(--amber)}
+  footer{margin-top:78px;padding-top:26px;border-top:1px solid var(--line);
+    color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div>
+    <h1>Kiln <em>mark</em></h1>
+    <p>Nested arches resolving to a solid core. The engine's layers, and a kiln seen end&#8209;on.</p>
+  </div>
+  <button class="toggle" id="t">Flip background</button>
+</header>
+
+<section>
+  <div class="hero" id="hero"></div>
+</section>
+
+<section>
+  <h2>Optical sizing</h2>
+  <p>Three rings hold down to 24&nbsp;px. Below that the gaps close no matter how the geometry is
+     tuned, because 1&nbsp;px is 1&nbsp;px — so the mark has a second cut with two rings and a
+     fatter stroke.</p>
+  <div class="row" id="ladder"></div>
+  <div class="rule"><b>Swap at 24&nbsp;px.</b> Favicon, tray icon, and nav-bar marks use
+    <code>kiln-mark-small.svg</code>. Everything else uses <code>kiln-mark.svg</code>.</div>
+</section>
+
+<section>
+  <h2>Lockups</h2>
+  <p>Mark and wordmark, at header and nav scale. Clear space on all sides equals one ring stroke.</p>
+  <div class="lockrow" id="locks"></div>
+</section>
+
+<section>
+  <h2>Colour</h2>
+  <p>The body is <code>currentColor</code>, so one file serves light chrome, dark chrome, and
+     monochrome print. Only the core is fixed.</p>
+  <div class="sw">
+    <div class="chip"><span class="dot" style="background:#F5A93C"></span><b>Amber</b><span>#F5A93C · the core, never anything else</span></div>
+    <div class="chip"><span class="dot" style="background:#0B1226;outline:1px solid var(--line)"></span><b>Ink</b><span>#0B1226 · body on light</span></div>
+    <div class="chip"><span class="dot" style="background:#F4E7D3;outline:1px solid var(--line)"></span><b>Cream</b><span>#F4E7D3 · body on dark</span></div>
+    <div class="chip"><span class="dot" style="background:#7FC3AC"></span><b>Mint</b><span>#7FC3AC · accents, never the mark</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Rules</h2>
+  <ul>
+    <li><b>Never recolour the core.</b> The amber is the only fixed value in the system.</li>
+    <li><b>Never add a third ring below 24&nbsp;px.</b> That is what the small cut exists for.</li>
+    <li><b>Never round the leg ends.</b> Butt caps sit the arch flat on its baseline; round caps make it float.</li>
+    <li><b>Never add a glow, gradient, or shadow.</b> The mark is flat; the atmosphere lives in the page behind it.</li>
+    <li><b>Never stretch.</b> The 1.24:1 stance is what separates an arch from a rainbow.</li>
+  </ul>
+</section>
+
+<footer>Sources: <code>kiln-mark.svg</code>, <code>kiln-mark-small.svg</code></footer>
+</div>
+
+<script>
+const FULL = `<g fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="butt"><path d="M13 80 V57 a37 37 0 0 1 74 0 V80"/><path d="M27 80 V57 a23 23 0 0 1 46 0 V80"/></g><path d="M40 80 V57 a10 10 0 0 1 20 0 V80 Z" fill="#F5A93C"/>`;
+const SMALL = `<path d="M14 81 V56 a36 36 0 0 1 72 0 V81" fill="none" stroke="currentColor" stroke-width="11" stroke-linecap="butt"/><path d="M37 81 V56 a13 13 0 0 1 26 0 V81 Z" fill="#F5A93C"/>`;
+const svg = (b, c) => `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"${c?` class="${c}"`:""} aria-hidden="true">${b}</svg>`;
+
+hero.innerHTML = svg(FULL);
+
+ladder.innerHTML = [
+  [FULL,"s64","64"],[FULL,"s32","32"],[FULL,"s24","24"],
+  [SMALL,"s24","24 · small cut"],[SMALL,"s16","16 · small cut"]
+].map(([b,c,l]) => `<div class="step">${svg(b,c)}<div class="tag">${l}</div></div>`).join("");
+
+locks.innerHTML = `
+  <div class="lock">${svg(FULL)}<span class="word">Kiln</span></div>
+  <div class="lock sm">${svg(SMALL)}<span class="word">Kiln</span></div>`;
+
+const r = document.documentElement;
+t.onclick = () => r.dataset.bg = r.dataset.bg === "dark" ? "light" : "dark";
+</script>
+</body>
+</html>

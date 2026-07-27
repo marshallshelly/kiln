@@ -1,0 +1,7 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Kiln">
+  <g fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="butt">
+    <path d="M13 80 V57 a37 37 0 0 1 74 0 V80"/>
+    <path d="M27 80 V57 a23 23 0 0 1 46 0 V80"/>
+  </g>
+  <path d="M40 80 V57 a10 10 0 0 1 20 0 V80 Z" fill="#F5A93C"/>
+</svg>

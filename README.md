@@ -1,0 +1,159 @@
+<p align="center">
+  <img src="assets/logo/kiln-mark-masthead.svg" width="150" alt="Kiln">
+</p>
+
+<h1 align="center">Kiln</h1>
+
+<p align="center">
+  <em>Your HTML. Your CSS. No browser.</em>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/github/stars/marshallshelly/kiln?style=flat-square&color=0B1226&label=stars" alt="Stars">
+  <img src="https://img.shields.io/badge/status-M0%20of%20M11-F5A93C?style=flat-square" alt="Status: M0 of M11">
+  <img src="https://img.shields.io/badge/built%20with-Rust-0B1226?style=flat-square" alt="Built with Rust">
+  <img src="https://img.shields.io/badge/license-Apache--2.0-0B1226?style=flat-square" alt="Apache-2.0 license">
+</p>
+
+<p align="center">
+  <strong>Native desktop apps from real HTML, CSS, and TypeScript &middot; rendered by our own engine &middot; no Chromium, no WebView</strong><br>
+  <sub><strong>This is very early.</strong> One milestone of eleven is finished: a window, a GPU surface, and one rounded rectangle. There is no HTML parser yet, no CSS engine, and no JavaScript. Read <a href="#status">Status</a> before you get excited.</sub>
+</p>
+
+---
+
+Electron ships an entire browser so you can render a settings page. Tauri borrows the OS WebView, so your app looks different on every machine and you don't control the engine. Both are reasonable trades.
+
+Kiln makes a different one: we render it ourselves.
+
+Your HTML gets parsed by a real HTML parser. Your CSS is resolved by Firefox's cascade engine. Your text is shaped by the same stack Firefox shapes text with. Then it's drawn on the GPU into a real OS window — with real menus, a real tray, and real accessibility — and none of it needs a browser to be there.
+
+<p align="center">
+  <img src="assets/hero.png" width="620" alt="An application window lifted out of a small kiln">
+</p>
+
+## Status
+
+Honesty is the product, so here is the unflattering version.
+
+| Milestone | | |
+|---|---|---|
+| **M0** | ✅ done | winit window + wgpu, one rounded rectangle from a hardcoded struct |
+| M1 | next | html5ever + Stylo + Taffy + Vello — a static page renders, no JS |
+| M2 | | Parley text: fonts, fallback, wrapping, non-Latin scripts |
+| M3 | | QuickJS + DOM bridge + events — **a counter app works** |
+| M4 | | restyle invalidation, transitions, keyframes, custom properties |
+| M5 | | scrolling with native physics, focus, keyboard nav, text input with IME |
+| M6 | | menus, tray, dialogs, clipboard, notifications, accessibility tree |
+| M7 | | `kiln init/dev/build/check`, hot reload, DevTools over CDP |
+| M8 | | **Preact runs unmodified.** Tailwind works. |
+| M9 | | packaging: `.app`/`.dmg`/`.msi`/`.deb`, signing, notarization |
+| M10 | | automation server, record/replay, deterministic screenshots |
+| M11 | | static TypeScript compilation tier |
+
+M3 is when this becomes demonstrable. M8 is when you could port something real.
+
+**No benchmarks are published yet, deliberately.** Targets exist — a binary in the tens of megabytes rather than hundreds, startup in milliseconds, idle memory in tens of megabytes — but nothing has been measured on a real application, so nothing gets printed here as though it had been. When the numbers land they'll ship with a reproducible benchmark in this repo.
+
+## Why not just use a WebView
+
+|  | Electron | Tauri | Kiln |
+|---|---|---|---|
+| Author in HTML/CSS/TS | yes | yes | yes |
+| Ships a browser | Chromium | borrows the OS WebView | **no** |
+| Identical rendering on every OS | yes | **no** | yes |
+| You control the engine | no | no | **yes** |
+| Full CSS support | yes | yes | **no — see [The subset](#the-subset)** |
+| Production ready | yes | yes | **no — see [Status](#status)** |
+
+<p align="center">
+  <img src="assets/comparison.png" width="620" alt="An oversized shipping crate beside a small glowing cube">
+</p>
+
+The last two rows are on purpose. Tauri is the right answer whenever the host WebView is acceptable to you; the overlap is real and worth saying out loud. Kiln is for when it isn't — when rendering has to be identical everywhere, when you need the engine to be something you can reason about, or when 40 MB of resident memory before the first paint is too much.
+
+## Assemble, don't build
+
+The load-bearing decision in this project is what it *doesn't* write.
+
+<p align="center">
+  <img src="assets/stack.png" width="420" alt="An exploded stack of engine layers">
+</p>
+
+| Layer | Crate | Why |
+|---|---|---|
+| CSS | [Stylo](https://github.com/servo/stylo) | Firefox's actual cascade engine. Real selector matching, real invalidation, real custom properties. |
+| Layout | [Taffy](https://github.com/DioxusLabs/taffy) | Flexbox, CSS Grid, block, absolute. |
+| Text | [Parley](https://github.com/linebender/parley) | Shaping, bidi, line breaking, font fallback. The subsystem that kills projects like this one. |
+| Paint | [Vello](https://github.com/linebender/vello) + [wgpu](https://github.com/gfx-rs/wgpu) | GPU compute rasterizer. Metal, D3D12, Vulkan from one backend. |
+| Window | [winit](https://github.com/rust-windowing/winit) | Events, IME, HiDPI, multi-monitor. |
+| Accessibility | [AccessKit](https://github.com/AccessKit/accesskit) | UIAutomation, AT-SPI, NSAccessibility. |
+| HTML | [html5ever](https://github.com/servo/html5ever) | Servo's spec-compliant parser. |
+| Script | [QuickJS-ng](https://github.com/quickjs-ng/quickjs) | ~620 KB, ES2023, bytecode precompilation. |
+
+Most of the first seven are already assembled by [Blitz](https://github.com/DioxusLabs/blitz), which Kiln builds on. Blitz has no JavaScript. That is precisely and only the thing this project adds — the DOM bridge, the script runtime, the CLI, the tooling, and the packaging.
+
+Writing a CSS engine or a text-shaping stack from scratch is the failure mode this repo exists to avoid.
+
+<p align="center">
+  <img src="assets/pipeline.png" width="620" alt="HTML, CSS and TypeScript entering a kiln, an application coming out">
+</p>
+
+## The subset
+
+Kiln is not a browser and will never render arbitrary websites. HTML and CSS are the *authoring* language, not a compatibility promise.
+
+Some of CSS is therefore out of scope for v1 — `float`, table layout, `position: sticky`, `:has()`, `@container`, `backdrop-filter`, 3D transforms, subgrid.
+
+The important part is not the list, it's the mechanic: **a property Kiln can't honor will never be a silent no-op.** `kiln check` reports every unsupported declaration with a code, a `file:line:column`, and a rewrite hint:
+
+```console
+$ kiln check
+
+  src/app.css
+    declarations         412
+    supported            401  (97%)
+
+    ×6  position: sticky                  KC1201  use a fixed header + scroll padding
+    ×3  backdrop-filter: blur(12px)       KC1340  filter: blur() on a sibling layer
+    ×2  :has(> .active)                   KC1102  not supported — restructure or use a class
+```
+
+A silently ignored property is the fastest way to destroy trust in an engine like this: you write correct CSS, see wrong pixels, and blame yourself. Making the gap explicit and teachable turns an incomplete engine into a legible one.
+
+## What runs today
+
+M0 only — a window and one rounded rectangle, drawn from a hardcoded Rust struct. No parser, no DOM, no script.
+
+```console
+$ cargo run
+```
+
+<p align="center">
+  <img src="assets/m0.png" width="620" alt="An amber rounded rectangle on a dark blue background">
+</p>
+
+There is also a headless path that renders a frame with no window at all and writes a PNG:
+
+```console
+$ cargo run -- --render out.png
+```
+
+That is not a debugging convenience. It's the seed of a deterministic reference renderer — the thing that makes golden-image tests, CI on a machine with no display, and automated verification possible. Both paths share one pipeline, so they cannot drift.
+
+## Building
+
+Requires a recent Rust toolchain. No other system dependencies.
+
+```console
+$ cargo build
+$ cargo clippy --all-targets --all-features --locked -- -D warnings
+```
+
+## Contributing
+
+The project is early enough that the most useful contribution is argument. If you think the architecture is wrong, the subset is drawn in the wrong place, or a dependency is a mistake, open an issue and say so.
+
+## License
+
+[Apache-2.0](LICENSE).

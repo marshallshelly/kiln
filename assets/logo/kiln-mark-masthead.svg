@@ -1,0 +1,14 @@
+<!-- Theme-aware cut for <img> embeds (README, PLAN.md), where currentColor
+     cannot inherit. Use kiln-mark.svg anywhere the SVG is inlined. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="96" height="96"
+     role="img" aria-label="Kiln">
+  <style>
+    .body{stroke:#0B1226}
+    @media (prefers-color-scheme:dark){.body{stroke:#F4E7D3}}
+  </style>
+  <g class="body" fill="none" stroke-width="7" stroke-linecap="butt">
+    <path d="M13 80 V57 a37 37 0 0 1 74 0 V80"/>
+    <path d="M27 80 V57 a23 23 0 0 1 46 0 V80"/>
+  </g>
+  <path d="M40 80 V57 a10 10 0 0 1 20 0 V80 Z" fill="#F5A93C"/>
+</svg>
