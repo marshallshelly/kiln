@@ -31,12 +31,28 @@ globalThis.document = {
   },
 };
 
-globalThis.__dispatch = (path, type) => {
+globalThis.__dispatch = (path, type, detail) => {
   let fired = false;
+  let stopped = false;
+  const event = {
+    type,
+    key: detail.key,
+    button: detail.button,
+    clientX: detail.clientX,
+    clientY: detail.clientY,
+    target: new Element(path[0]),
+    currentTarget: null,
+    defaultPrevented: false,
+    preventDefault() { this.defaultPrevented = true; },
+    stopPropagation() { stopped = true; },
+  };
   for (const id of path) {
     const handlers = __listeners.get(id + ":" + type);
-    if (!handlers) continue;
-    for (const handler of handlers) { handler(); fired = true; }
+    if (handlers) {
+      event.currentTarget = new Element(id);
+      for (const handler of handlers) { handler(event); fired = true; }
+    }
+    if (stopped) break;
   }
   return fired;
 };
@@ -102,11 +118,17 @@ impl Script {
             .context("evaluate script")
     }
 
-    pub fn dispatch(&self, path: &[usize], event: &str) -> Result<bool> {
+    pub fn dispatch(&self, event: &crate::events::Dispatch) -> Result<bool> {
         self.context
             .with(|ctx| -> rquickjs::Result<bool> {
+                let detail = Object::new(ctx.clone())?;
+                detail.set("key", event.key.clone())?;
+                detail.set("button", event.button)?;
+                detail.set("clientX", event.client_x)?;
+                detail.set("clientY", event.client_y)?;
+
                 let dispatch: Function = ctx.globals().get("__dispatch")?;
-                dispatch.call((path.to_vec(), event))
+                dispatch.call((event.chain.clone(), event.kind, detail))
             })
             .map_err(|e| anyhow!("{e}"))
             .context("dispatch event")

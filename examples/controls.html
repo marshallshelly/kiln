@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+<style>
+  body { margin:0; padding:48px; background:#0B1226; color:#F4E7D3;
+         font-family:Helvetica,Arial,sans-serif; }
+  h1 { margin:0 0 8px; font-size:15px; letter-spacing:.18em;
+       text-transform:uppercase; color:#8FA0C4; font-weight:normal; }
+  p.note { margin:0 0 28px; font-size:13px; color:#6C7A9C; }
+  .box { padding:16px 20px; margin:12px 0; background:#131E3D;
+         border:1px solid #22315C; border-radius:12px; font-size:15px; }
+  .box:hover { background:#F5A93C; color:#0B1226; border-color:#F5A93C; }
+  label { display:block; margin:14px 0; font-size:15px; }
+  details { margin:14px 0; font-size:15px; }
+  summary { padding:6px 0; }
+  #out { margin-top:24px; font-size:13px; color:#7FC3AC; }
+</style>
+</head>
+<body>
+  <h1>Built-in behaviour</h1>
+  <p class="note">None of this is wired by hand — the engine owns it.</p>
+
+  <div class="box">hover me</div>
+
+  <label><input type="checkbox"> a checkbox that toggles</label>
+
+  <details>
+    <summary>a details element</summary>
+    <p>…that opens.</p>
+  </details>
+
+  <div id="out">keydown: none yet</div>
+
+  <script>
+    const out = document.querySelector("#out");
+    document.querySelector("body").addEventListener("keydown", (e) => {
+      out.textContent = "keydown: " + e.key;
+    });
+  </script>
+</body>
+</html>

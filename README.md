@@ -40,7 +40,7 @@ Honesty is the product, so here is the unflattering version.
 |---|---|---|
 | **M0** | ✅ done | winit window + wgpu, one rounded rectangle from a hardcoded struct |
 | **M1** | ✅ done | HTML + CSS renders — cascade, flexbox, gradients, text — in a window and headless |
-| **M3** | ✅ done | QuickJS + DOM bridge + click events — **a counter app works** |
+| **M3** | ✅ done | QuickJS + DOM bridge + events — **a counter app works**; hover, checkbox, details and focus come from the engine |
 | M2 | next | Parley text depth: font fallback, non-Latin scripts, richer inline layout |
 | M4 | | restyle invalidation, transitions, keyframes, custom properties |
 | M5 | | scrolling with native physics, focus, keyboard nav, text input with IME |
@@ -145,7 +145,13 @@ document.querySelector("#inc").addEventListener("click", () => {
 
 `document` and `Element` are a thin JavaScript shim over four native calls. **Nodes live in Rust; JavaScript only ever holds an opaque id.** Setting `textContent` mutates the real document, which marks it dirty, which re-runs style and layout on the next frame — the same path a resize takes.
 
-Clicks are hit-tested against the layout tree and bubble through ancestors, so a listener on a `<button>` fires when you hit the text inside it.
+Input goes through Blitz's `EventDriver`, so the engine's built-in behaviour comes with it — `:hover`, checkbox and radio toggling, `<details>` disclosure, focus, and form submission all work without a line of application code:
+
+<p align="center">
+  <img src="assets/controls.png" width="620" alt="A hover-highlighted box, a checked checkbox and an opened details element">
+</p>
+
+JavaScript gets real event objects — `type`, `key`, `target`, `currentTarget`, `clientX/Y`, `preventDefault()`, `stopPropagation()` — and clicks bubble through ancestors, so a listener on a `<button>` fires when the hit lands on the text inside it.
 
 [`examples/hello.html`](examples/hello.html) exercises the CSS side — custom properties, descendant selectors, flexbox with `gap` and `flex: 1`, `border-radius`, `linear-gradient`, inline styles, `letter-spacing`, monospace fallback. None of it is special-cased in Kiln; Stylo resolves the cascade and Taffy does layout.
 
@@ -154,9 +160,10 @@ Events can be driven without a mouse, which is how the counter above was verifie
 ```console
 $ kiln render examples/counter.html out.png --click "#inc" --click "#dec"
 $ kiln render examples/counter.html out.png --click-at 642,351
+$ kiln render examples/controls.html out.png --hover ".box"
 ```
 
-`--click` dispatches by selector; `--click-at` goes through real hit-testing, the same code the window uses.
+All three synthesize real pointer events and run the same `EventDriver` path the window uses — `--click` just resolves a selector to its centre point first.
 
 The headless path is not a debugging convenience. It's the deterministic reference renderer — what makes golden-image tests, CI on a machine with no display, and automated verification possible. Both paths share one document and one paint call, so they cannot drift.
 

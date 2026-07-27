@@ -1,4 +1,5 @@
 mod dom;
+mod events;
 mod script;
 
 use std::sync::Arc;
@@ -73,23 +74,16 @@ impl App {
         Ok(())
     }
 
-    fn click(&mut self) {
-        let x = self.cursor.x as f32;
-        let y = self.cursor.y as f32;
-
-        let Some(node) = self.dom.hit(x, y) else {
-            return;
-        };
-        let path = self.dom.event_path(node);
-
-        match self.script.dispatch(&path, "click") {
-            Ok(true) => {
-                if let Some(window) = self.window.as_ref() {
-                    window.request_redraw();
-                }
+    fn drive(&mut self, event: blitz_traits::events::UiEvent) {
+        let mut redraw = false;
+        for dispatch in self.dom.drive(event) {
+            match self.script.dispatch(&dispatch) {
+                Ok(fired) => redraw |= fired,
+                Err(error) => eprintln!("{error:?}"),
             }
-            Ok(false) => {}
-            Err(error) => eprintln!("{error:?}"),
+        }
+        if redraw && let Some(window) = self.window.as_ref() {
+            window.request_redraw();
         }
     }
 
@@ -136,12 +130,22 @@ impl ApplicationHandler for App {
                     window.request_redraw();
                 }
             }
-            WindowEvent::CursorMoved { position, .. } => self.cursor = position,
-            WindowEvent::MouseInput {
-                state: ElementState::Pressed,
-                button: MouseButton::Left,
-                ..
-            } => self.click(),
+            WindowEvent::CursorMoved { position, .. } => {
+                self.cursor = position;
+                self.drive(events::pointer_move(position.x as f32, position.y as f32));
+                if let Some(window) = self.window.as_ref() {
+                    window.request_redraw();
+                }
+            }
+            WindowEvent::MouseInput { state, button, .. } => {
+                let x = self.cursor.x as f32;
+                let y = self.cursor.y as f32;
+                self.drive(events::pointer_button(x, y, button, state));
+                if let Some(window) = self.window.as_ref() {
+                    window.request_redraw();
+                }
+            }
+            WindowEvent::KeyboardInput { event, .. } => self.drive(events::key(&event)),
             WindowEvent::RedrawRequested => self.redraw(),
             _ => {}
         }
@@ -175,29 +179,62 @@ fn open(input: &str) -> Result<()> {
     }
 }
 
-fn render(input: &str, output: &str, clicks: &[String], points: &[String]) -> Result<()> {
+fn render(
+    input: &str,
+    output: &str,
+    clicks: &[String],
+    points: &[String],
+    hovers: &[String],
+) -> Result<()> {
     let (dom, script) = load(input)?;
+
+    let mut targets: Vec<(f32, f32)> = Vec::new();
+
+    if !clicks.is_empty() || !points.is_empty() || !hovers.is_empty() {
+        dom.resolve();
+    }
+
+    for selector in hovers {
+        let node = dom
+            .query_selector(selector)
+            .with_context(|| format!("no element matches {selector}"))?;
+        let (x, y) = dom
+            .center_of(node)
+            .with_context(|| format!("{selector} has no layout box"))?;
+        for dispatch in dom.drive(events::pointer_move(x, y)) {
+            script.dispatch(&dispatch)?;
+        }
+        dom.resolve();
+    }
 
     for selector in clicks {
         let node = dom
             .query_selector(selector)
             .with_context(|| format!("no element matches {selector}"))?;
-        script.dispatch(&dom.event_path(node), "click")?;
+        let (x, y) = dom
+            .center_of(node)
+            .with_context(|| format!("{selector} has no layout box"))?;
+        targets.push((x, y));
     }
 
-    if !points.is_empty() {
-        dom.resolve();
-    }
     for point in points {
-        let (x, y) = point
-            .split_once(',')
-            .context("--click-at expects X,Y")?;
-        let x: f32 = x.trim().parse().context("--click-at X")?;
-        let y: f32 = y.trim().parse().context("--click-at Y")?;
-        let node = dom
-            .hit(x, y)
-            .with_context(|| format!("nothing at {x},{y}"))?;
-        script.dispatch(&dom.event_path(node), "click")?;
+        let (x, y) = point.split_once(',').context("--click-at expects X,Y")?;
+        targets.push((
+            x.trim().parse().context("--click-at X")?,
+            y.trim().parse().context("--click-at Y")?,
+        ));
+    }
+
+    for (x, y) in targets {
+        for event in [
+            events::pointer_button(x, y, MouseButton::Left, ElementState::Pressed),
+            events::pointer_button(x, y, MouseButton::Left, ElementState::Released),
+        ] {
+            for dispatch in dom.drive(event) {
+                script.dispatch(&dispatch)?;
+            }
+        }
+        dom.resolve();
     }
 
     dom.write_png(output, DEFAULT_WIDTH, DEFAULT_HEIGHT, 1.0)?;
@@ -208,7 +245,8 @@ fn render(input: &str, output: &str, clicks: &[String], points: &[String]) -> Re
 fn usage() -> ! {
     eprintln!("usage:");
     eprintln!("  kiln open   <page.html>            open in a native window");
-    eprintln!("  kiln render <page.html> [out.png] [--click <selector>] [--click-at <x,y>]");
+    eprintln!("  kiln render <page.html> [out.png]");
+    eprintln!("        [--click <selector>] [--click-at <x,y>] [--hover <selector>]");
     eprintln!("                                     render headless to a PNG");
     std::process::exit(2)
 }
@@ -234,12 +272,14 @@ fn main() -> Result<()> {
             };
             let clicks = flag("--click");
             let points = flag("--click-at");
+            let hovers = flag("--hover");
             match positional.first() {
                 Some(input) => render(
                     input,
                     positional.get(1).map_or("out.png", |s| s.as_str()),
                     &clicks,
                     &points,
+                    &hovers,
                 ),
                 None => usage(),
             }

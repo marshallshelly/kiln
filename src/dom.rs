@@ -2,7 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use anyhow::{Context, Result};
-use blitz_dom::{DocumentConfig, NodeData};
+use blitz_dom::{DocumentConfig, EventDriver, NodeData};
+use blitz_traits::events::UiEvent;
 use blitz_html::HtmlDocument;
 use blitz_traits::shell::{ColorScheme, Viewport};
 
@@ -47,19 +48,25 @@ impl Dom {
             .flatten()
     }
 
-    pub fn hit(&self, x: f32, y: f32) -> Option<usize> {
-        self.document.borrow().hit(x, y).map(|hit| hit.node_id)
+    pub fn drive(&self, event: UiEvent) -> Vec<crate::events::Dispatch> {
+        let collector = crate::events::Collector::default();
+        {
+            let mut document = self.document.borrow_mut();
+            let mut driver = EventDriver::new(&mut *document, collector.clone());
+            driver.handle_ui_event(event);
+        }
+        collector.queued.take()
     }
 
-    pub fn event_path(&self, node_id: usize) -> Vec<usize> {
+    pub fn center_of(&self, node_id: usize) -> Option<(f32, f32)> {
         let document = self.document.borrow();
-        let mut path = Vec::new();
-        let mut current = Some(node_id);
-        while let Some(id) = current {
-            path.push(id);
-            current = document.get_node(id).and_then(|node| node.parent);
+        let node = document.get_node(node_id)?;
+        let size = node.final_layout.size;
+        if size.width <= 0.0 || size.height <= 0.0 {
+            return None;
         }
-        path
+        let position = node.absolute_position(0.0, 0.0);
+        Some((position.x + size.width / 2.0, position.y + size.height / 2.0))
     }
 
     pub fn text_content(&self, node_id: usize) -> String {
