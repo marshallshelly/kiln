@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+<style>
+  body { margin:0; height:100vh; display:flex; flex-direction:column; align-items:center;
+         justify-content:center; gap:24px; background:#0B1226; color:#F4E7D3;
+         font-family:Helvetica,Arial,sans-serif; }
+  h1 { margin:0; font-size:14px; letter-spacing:.18em; text-transform:uppercase;
+       color:#8FA0C4; font-weight:normal; }
+  .row { display:flex; align-items:center; gap:22px; }
+  button { width:64px; height:64px; font-size:30px; border:none; border-radius:32px;
+           background:#F5A93C; color:#0B1226; }
+  button.ghost { background:#131E3D; color:#F4E7D3; border:1px solid #22315C; }
+  .n { min-width:130px; text-align:center; font-size:72px; }
+  .tags { display:flex; gap:8px; }
+  .tag { padding:6px 14px; border-radius:999px; background:#131E3D;
+         border:1px solid #22315C; font-size:13px; color:#8FA0C4; }
+  .tag.on { background:#7FC3AC; color:#0B1226; border-color:#7FC3AC; }
+</style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script src="vendor/preact.umd.js"></script>
+  <script src="vendor/hooks.umd.js"></script>
+  <script>
+    var h = preact.h;
+    var useState = preactHooks.useState;
+
+    function App() {
+      var state = useState(0);
+      var count = state[0];
+      var setCount = state[1];
+
+      var tags = [1, 2, 3, 4, 5].map(function (i) {
+        return h("div", { class: count >= i ? "tag on" : "tag" }, "≥ " + i);
+      });
+
+      return h("div", null,
+        h("h1", null, "Preact on Kiln"),
+        h("div", { class: "row" },
+          h("button", { class: "ghost", id: "dec", onClick: function () { setCount(count - 1); } }, "-"),
+          h("div", { class: "n" }, String(count)),
+          h("button", { id: "inc", onClick: function () { setCount(count + 1); } }, "+")
+        ),
+        h("div", { class: "tags" }, tags)
+      );
+    }
+
+    preact.render(h(App), document.querySelector("#app"));
+  </script>
+</body>
+</html>

@@ -153,12 +153,22 @@ impl ApplicationHandler for App {
 }
 
 fn load(input: &str) -> Result<(Dom, Script)> {
-    let html = std::fs::read_to_string(input).with_context(|| format!("read {input}"))?;
+    let path = std::path::Path::new(input);
+    let html = std::fs::read_to_string(path).with_context(|| format!("read {input}"))?;
+    let base = path.parent().unwrap_or_else(|| std::path::Path::new("."));
     let dom = Dom::from_html(&html, DEFAULT_WIDTH, DEFAULT_HEIGHT, 1.0);
 
     let script = Script::new(dom.clone()).context("start script runtime")?;
     for source in dom.scripts() {
-        script.eval(&source)?;
+        match source {
+            dom::Script::Inline(code) => script.eval(&code)?,
+            dom::Script::Src(src) => {
+                let file = base.join(&src);
+                let code = std::fs::read_to_string(&file)
+                    .with_context(|| format!("read script {}", file.display()))?;
+                script.eval(&code)?;
+            }
+        }
     }
 
     Ok((dom, script))

@@ -10,7 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/marshallshelly/kiln?style=flat-square&color=0B1226&label=stars" alt="Stars">
-  <img src="https://img.shields.io/badge/status-M3%20of%20M11-F5A93C?style=flat-square" alt="Status: M3 of M11">
+  <img src="https://img.shields.io/badge/status-M3%20%2B%20Preact--F5A93C?style=flat-square" alt="Status: M3 plus Preact">
   <img src="https://img.shields.io/badge/built%20with-Rust-0B1226?style=flat-square" alt="Built with Rust">
   <img src="https://img.shields.io/badge/license-Apache--2.0-0B1226?style=flat-square" alt="Apache-2.0 license">
 </p>
@@ -164,6 +164,26 @@ $ kiln render examples/controls.html out.png --hover ".box"
 ```
 
 All three synthesize real pointer events and run the same `EventDriver` path the window uses — `--click` just resolves a selector to its centre point first.
+
+## Preact runs
+
+An unmodified Preact build renders and updates against Kiln's DOM, hooks and all:
+
+<p align="center">
+  <img src="assets/preact.png" width="620" alt="A Preact counter showing 4, with five conditional tags, four of them highlighted">
+</p>
+
+```console
+$ cargo run -- render examples/preact.html out.png --click "#inc" --click "#inc"
+```
+
+[`examples/preact.html`](examples/preact.html) loads `preact.umd.js` and `hooks.umd.js` with `<script src>` — no build step, no shim, no patched fork. `useState` triggers a re-render, Preact diffs, and the DOM mutations flow through style, layout and paint.
+
+Getting there needed three specific things, each worth knowing if you're porting another framework:
+
+- **Stable node identity.** Preact compares DOM nodes with `===`, so JavaScript wrappers are cached per node id rather than created per call.
+- **`onclick` must exist as a property.** Preact lowercases an event name only if `"onclick" in element`; otherwise it registers the type as `"Click"` and nothing ever matches. Handlers are also called with `this` bound to the node, which its event proxy relies on.
+- **The microtask queue has to be drained.** Preact schedules re-renders on a promise. Without draining QuickJS's job queue after every script evaluation and event dispatch, state updates run and the screen never changes.
 
 The headless path is not a debugging convenience. It's the deterministic reference renderer — what makes golden-image tests, CI on a machine with no display, and automated verification possible. Both paths share one document and one paint call, so they cannot drift.
 
