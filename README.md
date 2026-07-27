@@ -10,14 +10,14 @@
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/marshallshelly/kiln?style=flat-square&color=0B1226&label=stars" alt="Stars">
-  <img src="https://img.shields.io/badge/status-M0%20of%20M11-F5A93C?style=flat-square" alt="Status: M0 of M11">
+  <img src="https://img.shields.io/badge/status-M1%20of%20M11-F5A93C?style=flat-square" alt="Status: M1 of M11">
   <img src="https://img.shields.io/badge/built%20with-Rust-0B1226?style=flat-square" alt="Built with Rust">
   <img src="https://img.shields.io/badge/license-Apache--2.0-0B1226?style=flat-square" alt="Apache-2.0 license">
 </p>
 
 <p align="center">
   <strong>Native desktop apps from real HTML, CSS, and TypeScript &middot; rendered by our own engine &middot; no Chromium, no WebView</strong><br>
-  <sub><strong>This is very early.</strong> One milestone of eleven is finished: a window, a GPU surface, and one rounded rectangle. There is no HTML parser yet, no CSS engine, and no JavaScript. Read <a href="#status">Status</a> before you get excited.</sub>
+  <sub><strong>This is very early.</strong> Two milestones of eleven are finished: HTML and CSS render, in a window and headless. There is no JavaScript yet, and the CSS surface is partial. Read <a href="#status">Status</a> before you get excited.</sub>
 </p>
 
 ---
@@ -39,8 +39,8 @@ Honesty is the product, so here is the unflattering version.
 | Milestone | | |
 |---|---|---|
 | **M0** | ✅ done | winit window + wgpu, one rounded rectangle from a hardcoded struct |
-| M1 | next | html5ever + Stylo + Taffy + Vello — a static page renders, no JS |
-| M2 | | Parley text: fonts, fallback, wrapping, non-Latin scripts |
+| **M1** | ✅ done | HTML + CSS renders — cascade, flexbox, gradients, text — in a window and headless |
+| M2 | next | Parley text depth: font fallback, non-Latin scripts, richer inline layout |
 | M3 | | QuickJS + DOM bridge + events — **a counter app works** |
 | M4 | | restyle invalidation, transitions, keyframes, custom properties |
 | M5 | | scrolling with native physics, focus, keyboard nav, text input with IME |
@@ -123,23 +123,20 @@ A silently ignored property is the fastest way to destroy trust in an engine lik
 
 ## What runs today
 
-M0 only — a window and one rounded rectangle, drawn from a hardcoded Rust struct. No parser, no DOM, no script.
+Real HTML and CSS render, in a native window or straight to a PNG. There is no JavaScript yet — that's M3.
 
 ```console
-$ cargo run
+$ cargo run -- open   examples/hello.html      # native window
+$ cargo run -- render examples/hello.html out.png   # headless
 ```
 
 <p align="center">
-  <img src="assets/m0.png" width="620" alt="An amber rounded rectangle on a dark blue background">
+  <img src="assets/m1.png" width="620" alt="A rendered page: heading, three flexbox cards with rounded corners and a gradient, colour swatches">
 </p>
 
-There is also a headless path that renders a frame with no window at all and writes a PNG:
+Everything in that image comes from [`examples/hello.html`](examples/hello.html) — custom properties, descendant selectors, flexbox with `gap` and `flex: 1`, `border-radius`, `linear-gradient`, inline styles, `letter-spacing`, monospace fallback. None of it is special-cased in Kiln; it's Stylo resolving the cascade and Taffy doing layout.
 
-```console
-$ cargo run -- --render out.png
-```
-
-That is not a debugging convenience. It's the seed of a deterministic reference renderer — the thing that makes golden-image tests, CI on a machine with no display, and automated verification possible. Both paths share one pipeline, so they cannot drift.
+The headless path is not a debugging convenience. It's the deterministic reference renderer — what makes golden-image tests, CI on a machine with no display, and automated verification possible. Both paths share one document and one paint call, so they cannot drift.
 
 ## Building
 

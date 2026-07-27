@@ -5,8 +5,11 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.104"
-bytemuck = { version = "1.25.2", features = ["derive"] }
+anyrender = "0.11"
+anyrender_vello = "0.12"
+blitz-dom = "0.3.0-beta.1"
+blitz-html = "0.3.0-beta.1"
+blitz-paint = "0.3.0-beta.1"
+blitz-traits = "0.3.0-beta.1"
 png = "0.18.1"
-pollster = "1.0.1"
-wgpu = "30.0.0"
 winit = "0.30.13"
