@@ -1,0 +1,93 @@
+<!doctype html>
+<html>
+<head>
+<style>
+  body {
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    background: #0B1226;
+    color: #F4E7D3;
+    font-family: Helvetica, Arial, sans-serif;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: normal;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #8FA0C4;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  button {
+    width: 72px;
+    height: 72px;
+    font-size: 34px;
+    color: #0B1226;
+    background: #F5A93C;
+    border: none;
+    border-radius: 36px;
+  }
+
+  button.ghost {
+    background: #131E3D;
+    color: #F4E7D3;
+    border: 1px solid #22315C;
+  }
+
+  #count {
+    min-width: 150px;
+    text-align: center;
+    font-size: 84px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  footer {
+    font-size: 13px;
+    color: #6C7A9C;
+  }
+</style>
+</head>
+<body>
+  <h1>Kiln counter</h1>
+
+  <div class="row">
+    <button id="dec" class="ghost">-</button>
+    <div id="count">0</div>
+    <button id="inc">+</button>
+  </div>
+
+  <footer id="log">no clicks yet</footer>
+
+  <script>
+    let count = 0;
+
+    const display = document.querySelector("#count");
+    const log = document.querySelector("#log");
+    let clicks = 0;
+
+    function update(delta) {
+      count += delta;
+      clicks += 1;
+      display.textContent = count;
+      log.textContent = clicks === 1 ? "1 click" : clicks + " clicks";
+    }
+
+    document.querySelector("#inc").addEventListener("click", () => update(1));
+    document.querySelector("#dec").addEventListener("click", () => update(-1));
+
+    console.log("counter ready");
+  </script>
+</body>
+</html>

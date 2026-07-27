@@ -1,4 +1,5 @@
-mod page;
+mod dom;
+mod script;
 
 use std::sync::Arc;
 
@@ -6,11 +7,13 @@ use anyhow::{Context, Result, bail};
 use anyrender::WindowRenderer;
 use anyrender_vello::VelloWindowRenderer;
 use winit::application::ApplicationHandler;
-use winit::event::WindowEvent;
+use winit::dpi::PhysicalPosition;
+use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
 
-use page::Page;
+use dom::Dom;
+use script::Script;
 
 const DEFAULT_WIDTH: u32 = 1000;
 const DEFAULT_HEIGHT: u32 = 700;
@@ -18,16 +21,24 @@ const DEFAULT_HEIGHT: u32 = 700;
 struct App {
     window: Option<Arc<Window>>,
     renderer: VelloWindowRenderer,
-    page: Page,
+    dom: Dom,
+    script: Script,
+    cursor: PhysicalPosition<f64>,
+    scale: f32,
+    size: (u32, u32),
     failure: Option<anyhow::Error>,
 }
 
 impl App {
-    fn new(page: Page) -> Self {
+    fn new(dom: Dom, script: Script) -> Self {
         Self {
             window: None,
             renderer: VelloWindowRenderer::new(),
-            page,
+            dom,
+            script,
+            cursor: PhysicalPosition::new(0.0, 0.0),
+            scale: 1.0,
+            size: (DEFAULT_WIDTH, DEFAULT_HEIGHT),
             failure: None,
         }
     }
@@ -47,7 +58,8 @@ impl App {
         );
 
         let size = window.inner_size();
-        let scale = window.scale_factor() as f32;
+        self.scale = window.scale_factor() as f32;
+        self.size = (size.width, size.height);
 
         self.renderer
             .resume(Arc::clone(&window) as Arc<_>, size.width, size.height, || {});
@@ -55,19 +67,47 @@ impl App {
             bail!("renderer failed to initialize");
         }
 
-        self.page.resize(size.width, size.height, scale);
+        self.dom.set_viewport(size.width, size.height, self.scale);
         window.request_redraw();
         self.window = Some(window);
         Ok(())
+    }
+
+    fn click(&mut self) {
+        let x = self.cursor.x as f32;
+        let y = self.cursor.y as f32;
+
+        let Some(node) = self.dom.hit(x, y) else {
+            return;
+        };
+        let path = self.dom.event_path(node);
+
+        match self.script.dispatch(&path, "click") {
+            Ok(true) => {
+                if let Some(window) = self.window.as_ref() {
+                    window.request_redraw();
+                }
+            }
+            Ok(false) => {}
+            Err(error) => eprintln!("{error:?}"),
+        }
     }
 
     fn redraw(&mut self) {
         if !self.renderer.is_active() {
             return;
         }
-        let Self { renderer, page, .. } = self;
-        page.resolve();
-        renderer.render(|scene| page.paint(scene));
+        self.dom.resolve();
+        let Self {
+            renderer,
+            dom,
+            scale,
+            size,
+            ..
+        } = self;
+        let (width, height) = *size;
+        let scale = f64::from(*scale);
+        renderer.render(|scene| dom.paint(scene, scale, width, height));
     }
 }
 
@@ -89,29 +129,44 @@ impl ApplicationHandler for App {
                 if size.width == 0 || size.height == 0 {
                     return;
                 }
-                let scale = self
-                    .window
-                    .as_ref()
-                    .map_or(1.0, |w| w.scale_factor() as f32);
+                self.size = (size.width, size.height);
                 self.renderer.set_size(size.width, size.height);
-                self.page.resize(size.width, size.height, scale);
+                self.dom.set_viewport(size.width, size.height, self.scale);
                 if let Some(window) = self.window.as_ref() {
                     window.request_redraw();
                 }
             }
+            WindowEvent::CursorMoved { position, .. } => self.cursor = position,
+            WindowEvent::MouseInput {
+                state: ElementState::Pressed,
+                button: MouseButton::Left,
+                ..
+            } => self.click(),
             WindowEvent::RedrawRequested => self.redraw(),
             _ => {}
         }
     }
 }
 
+fn load(input: &str) -> Result<(Dom, Script)> {
+    let html = std::fs::read_to_string(input).with_context(|| format!("read {input}"))?;
+    let dom = Dom::from_html(&html, DEFAULT_WIDTH, DEFAULT_HEIGHT, 1.0);
+
+    let script = Script::new(dom.clone()).context("start script runtime")?;
+    for source in dom.scripts() {
+        script.eval(&source)?;
+    }
+
+    Ok((dom, script))
+}
+
 fn open(input: &str) -> Result<()> {
-    let page = Page::from_file(input, DEFAULT_WIDTH, DEFAULT_HEIGHT, 1.0).context("load page")?;
+    let (dom, script) = load(input)?;
 
     let event_loop = EventLoop::new().context("create event loop")?;
     event_loop.set_control_flow(ControlFlow::Wait);
 
-    let mut app = App::new(page);
+    let mut app = App::new(dom, script);
     event_loop.run_app(&mut app).context("run event loop")?;
 
     match app.failure {
@@ -120,10 +175,32 @@ fn open(input: &str) -> Result<()> {
     }
 }
 
-fn render(input: &str, output: &str) -> Result<()> {
-    let mut page =
-        Page::from_file(input, DEFAULT_WIDTH, DEFAULT_HEIGHT, 1.0).context("load page")?;
-    page.write_png(output)?;
+fn render(input: &str, output: &str, clicks: &[String], points: &[String]) -> Result<()> {
+    let (dom, script) = load(input)?;
+
+    for selector in clicks {
+        let node = dom
+            .query_selector(selector)
+            .with_context(|| format!("no element matches {selector}"))?;
+        script.dispatch(&dom.event_path(node), "click")?;
+    }
+
+    if !points.is_empty() {
+        dom.resolve();
+    }
+    for point in points {
+        let (x, y) = point
+            .split_once(',')
+            .context("--click-at expects X,Y")?;
+        let x: f32 = x.trim().parse().context("--click-at X")?;
+        let y: f32 = y.trim().parse().context("--click-at Y")?;
+        let node = dom
+            .hit(x, y)
+            .with_context(|| format!("nothing at {x},{y}"))?;
+        script.dispatch(&dom.event_path(node), "click")?;
+    }
+
+    dom.write_png(output, DEFAULT_WIDTH, DEFAULT_HEIGHT, 1.0)?;
     println!("{input} -> {output} ({DEFAULT_WIDTH}x{DEFAULT_HEIGHT})");
     Ok(())
 }
@@ -131,7 +208,8 @@ fn render(input: &str, output: &str) -> Result<()> {
 fn usage() -> ! {
     eprintln!("usage:");
     eprintln!("  kiln open   <page.html>            open in a native window");
-    eprintln!("  kiln render <page.html> [out.png]  render headless to a PNG");
+    eprintln!("  kiln render <page.html> [out.png] [--click <selector>] [--click-at <x,y>]");
+    eprintln!("                                     render headless to a PNG");
     std::process::exit(2)
 }
 
@@ -143,10 +221,29 @@ fn main() -> Result<()> {
             Some(input) => open(input),
             None => usage(),
         },
-        Some("render") => match args.get(1) {
-            Some(input) => render(input, args.get(2).map_or("out.png", String::as_str)),
-            None => usage(),
-        },
+        Some("render") => {
+            let positional: Vec<&String> = args[1..]
+                .iter()
+                .take_while(|arg| !arg.starts_with("--"))
+                .collect();
+            let flag = |name: &str| -> Vec<String> {
+                args.windows(2)
+                    .filter(|pair| pair[0] == name)
+                    .map(|pair| pair[1].clone())
+                    .collect()
+            };
+            let clicks = flag("--click");
+            let points = flag("--click-at");
+            match positional.first() {
+                Some(input) => render(
+                    input,
+                    positional.get(1).map_or("out.png", |s| s.as_str()),
+                    &clicks,
+                    &points,
+                ),
+                None => usage(),
+            }
+        }
         Some(other) => bail!("unknown command: {other}"),
         None => usage(),
     }

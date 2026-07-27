@@ -10,14 +10,14 @@
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/marshallshelly/kiln?style=flat-square&color=0B1226&label=stars" alt="Stars">
-  <img src="https://img.shields.io/badge/status-M1%20of%20M11-F5A93C?style=flat-square" alt="Status: M1 of M11">
+  <img src="https://img.shields.io/badge/status-M3%20of%20M11-F5A93C?style=flat-square" alt="Status: M3 of M11">
   <img src="https://img.shields.io/badge/built%20with-Rust-0B1226?style=flat-square" alt="Built with Rust">
   <img src="https://img.shields.io/badge/license-Apache--2.0-0B1226?style=flat-square" alt="Apache-2.0 license">
 </p>
 
 <p align="center">
   <strong>Native desktop apps from real HTML, CSS, and TypeScript &middot; rendered by our own engine &middot; no Chromium, no WebView</strong><br>
-  <sub><strong>This is very early.</strong> Two milestones of eleven are finished: HTML and CSS render, in a window and headless. There is no JavaScript yet, and the CSS surface is partial. Read <a href="#status">Status</a> before you get excited.</sub>
+  <sub><strong>This is early.</strong> HTML and CSS render, and JavaScript can drive the DOM — a counter app works. The CSS surface is partial and most of the toolkit (text depth, scrolling, menus, packaging) is not built. Read <a href="#status">Status</a> before you get excited.</sub>
 </p>
 
 ---
@@ -40,8 +40,8 @@ Honesty is the product, so here is the unflattering version.
 |---|---|---|
 | **M0** | ✅ done | winit window + wgpu, one rounded rectangle from a hardcoded struct |
 | **M1** | ✅ done | HTML + CSS renders — cascade, flexbox, gradients, text — in a window and headless |
+| **M3** | ✅ done | QuickJS + DOM bridge + click events — **a counter app works** |
 | M2 | next | Parley text depth: font fallback, non-Latin scripts, richer inline layout |
-| M3 | | QuickJS + DOM bridge + events — **a counter app works** |
 | M4 | | restyle invalidation, transitions, keyframes, custom properties |
 | M5 | | scrolling with native physics, focus, keyboard nav, text input with IME |
 | M6 | | menus, tray, dialogs, clipboard, notifications, accessibility tree |
@@ -123,18 +123,40 @@ A silently ignored property is the fastest way to destroy trust in an engine lik
 
 ## What runs today
 
-Real HTML and CSS render, in a native window or straight to a PNG. There is no JavaScript yet — that's M3.
+HTML and CSS render, and JavaScript can drive the DOM.
 
 ```console
-$ cargo run -- open   examples/hello.html      # native window
+$ cargo run -- open   examples/counter.html    # native window, buttons work
 $ cargo run -- render examples/hello.html out.png   # headless
 ```
 
 <p align="center">
-  <img src="assets/m1.png" width="620" alt="A rendered page: heading, three flexbox cards with rounded corners and a gradient, colour swatches">
+  <img src="assets/m3.png" width="620" alt="A counter app: minus and plus buttons either side of the number 5">
 </p>
 
-Everything in that image comes from [`examples/hello.html`](examples/hello.html) — custom properties, descendant selectors, flexbox with `gap` and `flex: 1`, `border-radius`, `linear-gradient`, inline styles, `letter-spacing`, monospace fallback. None of it is special-cased in Kiln; it's Stylo resolving the cascade and Taffy doing layout.
+That is [`examples/counter.html`](examples/counter.html) after five clicks. The page holds an ordinary `<script>`:
+
+```js
+const display = document.querySelector("#count");
+document.querySelector("#inc").addEventListener("click", () => {
+  display.textContent = ++count;
+});
+```
+
+`document` and `Element` are a thin JavaScript shim over four native calls. **Nodes live in Rust; JavaScript only ever holds an opaque id.** Setting `textContent` mutates the real document, which marks it dirty, which re-runs style and layout on the next frame — the same path a resize takes.
+
+Clicks are hit-tested against the layout tree and bubble through ancestors, so a listener on a `<button>` fires when you hit the text inside it.
+
+[`examples/hello.html`](examples/hello.html) exercises the CSS side — custom properties, descendant selectors, flexbox with `gap` and `flex: 1`, `border-radius`, `linear-gradient`, inline styles, `letter-spacing`, monospace fallback. None of it is special-cased in Kiln; Stylo resolves the cascade and Taffy does layout.
+
+Events can be driven without a mouse, which is how the counter above was verified:
+
+```console
+$ kiln render examples/counter.html out.png --click "#inc" --click "#dec"
+$ kiln render examples/counter.html out.png --click-at 642,351
+```
+
+`--click` dispatches by selector; `--click-at` goes through real hit-testing, the same code the window uses.
 
 The headless path is not a debugging convenience. It's the deterministic reference renderer — what makes golden-image tests, CI on a machine with no display, and automated verification possible. Both paths share one document and one paint call, so they cannot drift.
 
