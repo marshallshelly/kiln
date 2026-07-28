@@ -14,6 +14,7 @@ blitz-dom = { version = "0.3.0-beta.1", features = ["accessibility"] }
 blitz-html = "0.3.0-beta.1"
 blitz-paint = "0.3.0-beta.1"
 blitz-traits = "0.3.0-beta.1"
+cssparser = "0.37"
 keyboard-types = "0.7"
 muda = "0.19"
 notify-rust = "4"

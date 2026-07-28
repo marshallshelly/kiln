@@ -1,0 +1,25 @@
+  examples/unsupported.css
+    declarations         14
+    supported             4  (29%)
+
+    ×1   .card:has(> .selected)             KC1002  not supported — restructure or use a class
+         examples/unsupported.css:30:1
+    ×1   float: left                        KC1101  use flexbox or grid
+         examples/unsupported.css:5:3
+    ×1   display: table-cell                KC1102  use flexbox or grid
+         examples/unsupported.css:26:3
+    ×1   writing-mode: vertical-rl          KC1150  not supported
+         examples/unsupported.css:27:3
+    ×1   position: sticky                   KC1201  use a fixed header plus scroll padding
+         examples/unsupported.css:10:3
+    ×1   text-overflow: ellipsis            KC1210  clips without an ellipsis — truncate the text yourself
+         examples/unsupported.css:20:3
+    ×1   transform: translate3d(0, 0, 12px) KC1320  3D transforms are not supported — use the 2D subset
+         examples/unsupported.css:35:3
+    ×1   backdrop-filter: blur(12px)        KC1340  filter: blur() on a sibling layer
+         examples/unsupported.css:15:3
+    ×1   mix-blend-mode: multiply           KC1341  not supported — composite the colours yourself
+         examples/unsupported.css:16:3
+    ×1   @container                         KC1401  not supported — use @media or a resize observer
+         examples/unsupported.css:38:1
+

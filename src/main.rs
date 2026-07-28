@@ -1,3 +1,4 @@
+mod check;
 mod dom;
 mod events;
 mod native;
@@ -390,6 +391,95 @@ fn render(input: &str, output: &str, run: &Run) -> Result<()> {
     Ok(())
 }
 
+const TEMPLATE: &str = r##"<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>NAME</title>
+    <style>
+      :root { --accent: #f5a93c; --ink: #0b1226; --paper: #f4e7d3; }
+      body {
+        margin: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        background: var(--ink);
+        color: var(--paper);
+        font-family: Helvetica, Arial, sans-serif;
+      }
+      h1 { margin: 0; font-size: 15px; letter-spacing: 0.18em; text-transform: uppercase; color: #8fa0c4; }
+      button {
+        padding: 12px 22px;
+        font-size: 16px;
+        color: var(--ink);
+        background: var(--accent);
+        border: none;
+        border-radius: 8px;
+      }
+      output { font-size: 42px; font-variant-numeric: tabular-nums; }
+    </style>
+  </head>
+  <body>
+    <h1>NAME</h1>
+    <output id="count">0</output>
+    <button id="inc">Count up</button>
+
+    <script>
+      let count = 0;
+      const display = document.querySelector("#count");
+      document.querySelector("#inc").addEventListener("click", () => {
+        display.textContent = ++count;
+      });
+    </script>
+  </body>
+</html>
+"##;
+
+fn init(name: &str) -> Result<()> {
+    let dir = std::path::Path::new(name);
+    if dir.exists() {
+        bail!("{name} already exists");
+    }
+
+    std::fs::create_dir_all(dir).with_context(|| format!("create {name}"))?;
+    let entry = dir.join("index.html");
+    std::fs::write(&entry, TEMPLATE.replace("NAME", name))
+        .with_context(|| format!("write {}", entry.display()))?;
+
+    println!("created {}", entry.display());
+    println!();
+    println!("  kiln open   {}", entry.display());
+    println!("  kiln check  {}", entry.display());
+    Ok(())
+}
+
+fn check(inputs: &[String]) -> Result<()> {
+    let mut total = check::Report::default();
+    let mut out = String::from("\n");
+
+    for input in inputs {
+        let path = std::path::Path::new(input);
+        let report = check::check_path(path)?;
+        out.push_str(&check::render_report(path, &report));
+        total.declarations += report.declarations;
+        total.findings.extend(report.findings);
+    }
+
+    print!("{out}");
+    if inputs.len() > 1 {
+        println!(
+            "  {} files   {} declarations   {}% supported\n",
+            inputs.len(),
+            total.declarations,
+            total.percent()
+        );
+    }
+    Ok(())
+}
+
 fn usage() -> ! {
     eprintln!("usage:");
     eprintln!("  kiln open   <page.html>            open in a native window");
@@ -398,6 +488,9 @@ fn usage() -> ! {
     eprintln!("        [--snapshot <out.txt>] [--at <seconds>]");
     eprintln!("        [--scroll <selector,dx,dy>] [--type <text>] [--press <key>]");
     eprintln!("        [--a11y <out.txt>] [--menu <out.txt>]");
+    eprintln!("  kiln init   <name>                 scaffold a new app");
+    eprintln!("  kiln check  <page.html|style.css>...");
+    eprintln!("                                     report unsupported CSS");
     eprintln!("                                     render headless to a PNG");
     std::process::exit(2)
 }
@@ -441,6 +534,17 @@ fn main() -> Result<()> {
                 ),
                 None => usage(),
             }
+        }
+        Some("init") => match args.get(1) {
+            Some(name) => init(name),
+            None => usage(),
+        },
+        Some("check") => {
+            let inputs: Vec<String> = args[1..].to_vec();
+            if inputs.is_empty() {
+                usage()
+            }
+            check(&inputs)
         }
         Some(other) => bail!("unknown command: {other}"),
         None => usage(),
@@ -534,6 +638,75 @@ mod snapshot_tests {
     #[test]
     fn animation() {
         golden_at("animation", &[], Some(1.0));
+    }
+
+    #[test]
+    fn init_scaffolds_something_that_runs() {
+        let dir = std::env::temp_dir().join("kiln-init-test");
+        let _ = std::fs::remove_dir_all(&dir);
+
+        init(dir.to_str().unwrap()).unwrap();
+        let entry = dir.join("index.html");
+
+        // The scaffold must stay inside the subset it advertises.
+        let report = check::check_path(&entry).unwrap();
+        assert!(report.findings.is_empty(), "scaffold uses unsupported CSS");
+        assert!(report.declarations > 0, "scaffold has no CSS at all");
+
+        // And it must actually work when driven.
+        let (dom, script, _native) = load(entry.to_str().unwrap()).unwrap();
+        dom.settle(&script);
+        let node = dom.query_selector("#inc").unwrap();
+        let (x, y) = dom.center_of(node).unwrap();
+        for event in [
+            events::pointer_button(x, y, MouseButton::Left, ElementState::Pressed),
+            events::pointer_button(x, y, MouseButton::Left, ElementState::Released),
+        ] {
+            for dispatch in dom.drive(event) {
+                script.dispatch(&dispatch).unwrap();
+            }
+        }
+        dom.settle(&script);
+
+        assert!(
+            dom.snapshot().contains("\"1\""),
+            "the scaffolded counter did not increment"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn check_reports_the_subset() {
+        let path = std::path::Path::new("examples/unsupported.css");
+        let report = check::check_path(path).unwrap();
+        let actual = check::render_report(path, &report);
+
+        let golden = "tests/golden/check.txt";
+        if std::env::var_os("KILN_BLESS").is_some() {
+            std::fs::write(golden, &actual).unwrap();
+            return;
+        }
+        let expected = std::fs::read_to_string(golden)
+            .unwrap_or_else(|_| panic!("missing {golden}; run with KILN_BLESS=1"));
+        assert_eq!(expected, actual, "check report changed");
+    }
+
+    #[test]
+    fn check_passes_our_own_examples() {
+        for entry in std::fs::read_dir("examples").unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().and_then(|e| e.to_str()) != Some("html") {
+                continue;
+            }
+            let report = check::check_path(&path).unwrap();
+            assert!(
+                report.findings.is_empty(),
+                "{} uses unsupported CSS: {:?}",
+                path.display(),
+                report.findings.first().map(|f| &f.declaration)
+            );
+        }
     }
 
     #[test]

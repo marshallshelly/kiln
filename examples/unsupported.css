@@ -1,0 +1,40 @@
+/* Every rule here is outside Kiln's subset. `kiln check` should name all of
+   them with a code, a location and a rewrite hint. */
+
+.sidebar {
+  float: left;
+  width: 220px;
+}
+
+.toolbar {
+  position: sticky;
+  top: 0;
+}
+
+.panel {
+  backdrop-filter: blur(12px);
+  mix-blend-mode: multiply;
+}
+
+.title {
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.legacy {
+  display: table-cell;
+  writing-mode: vertical-rl;
+}
+
+.card:has(> .selected) {
+  border-color: red;
+}
+
+.deep {
+  transform: translate3d(0, 0, 12px);
+}
+
+@container (min-width: 480px) {
+  .card { padding: 24px; }
+}

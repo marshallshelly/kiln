@@ -45,7 +45,7 @@ Honesty is the product, so here is the unflattering version.
 | **M4** | ✅ | transitions, `@keyframes`, custom properties, `@media` — driven by a real animation clock |
 | **M5** | ✅ | scrolling, focus, keyboard nav, text input — IME wired but unverified |
 | **M6** | ✅ | accessibility tree, native menus, tray, clipboard, dialogs, notifications |
-| M7 | next | `kiln init/dev/build/check`, hot reload, DevTools over CDP |
+| M7 | ◐ | `kiln check` and `kiln init` work; `kiln dev`, hot reload and DevTools still to do |
 | M8 | | **Preact runs unmodified.** Tailwind works. |
 | M9 | | packaging: `.app`/`.dmg`/`.msi`/`.deb`, signing, notarization |
 | M10 | | automation server, record/replay, deterministic screenshots |
@@ -108,16 +108,23 @@ Some of CSS is therefore out of scope for v1 — `float`, table layout, `positio
 The important part is not the list, it's the mechanic: **a property Kiln can't honor will never be a silent no-op.** `kiln check` reports every unsupported declaration with a code, a `file:line:column`, and a rewrite hint:
 
 ```console
-$ kiln check
+$ kiln check examples/unsupported.css
 
-  src/app.css
-    declarations         412
-    supported            401  (97%)
+  examples/unsupported.css
+    declarations         14
+    supported             4  (29%)
 
-    ×6  position: sticky                  KC1201  use a fixed header + scroll padding
-    ×3  backdrop-filter: blur(12px)       KC1340  filter: blur() on a sibling layer
-    ×2  :has(> .active)                   KC1102  not supported — restructure or use a class
+    ×1   .card:has(> .selected)             KC1002  not supported — restructure or use a class
+         examples/unsupported.css:30:1
+    ×1   float: left                        KC1101  use flexbox or grid
+         examples/unsupported.css:5:3
+    ×1   position: sticky                   KC1201  use a fixed header plus scroll padding
+         examples/unsupported.css:10:3
+    ×1   backdrop-filter: blur(12px)        KC1340  filter: blur() on a sibling layer
+         examples/unsupported.css:15:3
 ```
+
+It runs over `.css` files and the `<style>` blocks inside `.html`, and it is tested in both directions: [`tests/golden/check.txt`](tests/golden/check.txt) pins that report, and another test asserts every committed example stays inside the subset.
 
 A silently ignored property is the fastest way to destroy trust in an engine like this: you write correct CSS, see wrong pixels, and blame yourself. Making the gap explicit and teachable turns an incomplete engine into a legible one.
 

@@ -2159,6 +2159,7 @@ dependencies = [
  "blitz-html",
  "blitz-paint",
  "blitz-traits",
+ "cssparser",
  "keyboard-types",
  "muda",
  "notify-rust",
