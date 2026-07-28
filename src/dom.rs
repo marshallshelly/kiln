@@ -123,13 +123,17 @@ impl Dom {
         }
     }
 
-    fn qual(name: &str) -> QualName {
-        QualName::new(None, ns!(), name.into())
+    fn element_name(name: &str) -> QualName {
+        QualName::new(None, ns!(html), name.to_ascii_lowercase().into())
+    }
+
+    fn attr_name(name: &str) -> QualName {
+        QualName::new(None, ns!(), name.to_ascii_lowercase().into())
     }
 
     pub fn create_element(&self, tag: &str) -> usize {
         let mut document = self.document.borrow_mut();
-        document.mutate().create_element(Self::qual(tag), Vec::new())
+        document.mutate().create_element(Self::element_name(tag), Vec::new())
     }
 
     pub fn create_text_node(&self, text: &str) -> usize {
@@ -154,12 +158,12 @@ impl Dom {
 
     pub fn set_attribute(&self, node_id: usize, name: &str, value: &str) {
         let mut document = self.document.borrow_mut();
-        document.mutate().set_attribute(node_id, Self::qual(name), value);
+        document.mutate().set_attribute(node_id, Self::attr_name(name), value);
     }
 
     pub fn remove_attribute(&self, node_id: usize, name: &str) {
         let mut document = self.document.borrow_mut();
-        document.mutate().clear_attribute(node_id, Self::qual(name));
+        document.mutate().clear_attribute(node_id, Self::attr_name(name));
     }
 
     pub fn attribute(&self, node_id: usize, name: &str) -> Option<String> {
