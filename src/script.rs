@@ -157,19 +157,59 @@ function __dashed(name) {
   return String(name).replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
 }
 
+const __inline = new Map();
+
+function __declarations(id) {
+  let decls = __inline.get(id);
+  if (!decls) {
+    decls = new Map();
+    const existing = __kiln.getAttribute(id, "style");
+    if (existing) {
+      for (const part of existing.split(";")) {
+        const i = part.indexOf(":");
+        if (i > 0) decls.set(part.slice(0, i).trim(), part.slice(i + 1).trim());
+      }
+    }
+    __inline.set(id, decls);
+  }
+  return decls;
+}
+
+function __cssText(id) {
+  let out = "";
+  for (const [name, value] of __declarations(id)) out += name + ": " + value + "; ";
+  return out.trim();
+}
+
+function __setStyle(id, name, value) {
+  const decls = __declarations(id);
+  if (value === null || value === undefined || value === "") decls.delete(name);
+  else decls.set(name, String(value));
+  __kiln.setAttribute(id, "style", __cssText(id));
+}
+
 function __makeStyle(id) {
   return new Proxy({}, {
     get(_target, prop) {
-      if (prop === "setProperty") {
-        return (name, value) => __kiln.setStyle(id, __dashed(name), value == null ? "" : String(value));
-      }
-      if (prop === "removeProperty") return (name) => __kiln.setStyle(id, __dashed(name), "");
-      if (prop === "cssText") return "";
-      return "";
+      if (prop === "setProperty") return (name, value) => __setStyle(id, __dashed(name), value);
+      if (prop === "removeProperty") return (name) => __setStyle(id, __dashed(name), "");
+      if (prop === "getPropertyValue") return (name) => __declarations(id).get(__dashed(name)) || "";
+      if (prop === "cssText") return __cssText(id);
+      if (typeof prop !== "string") return undefined;
+      return __declarations(id).get(__dashed(prop)) || "";
     },
     set(_target, prop, value) {
-      if (prop === "cssText") return true;
-      __kiln.setStyle(id, __dashed(prop), value == null ? "" : String(value));
+      if (prop === "cssText") {
+        __inline.set(id, new Map());
+        const decls = __declarations(id);
+        for (const part of String(value == null ? "" : value).split(";")) {
+          const i = part.indexOf(":");
+          if (i > 0) decls.set(part.slice(0, i).trim(), part.slice(i + 1).trim());
+        }
+        __kiln.setAttribute(id, "style", __cssText(id));
+        return true;
+      }
+      __setStyle(id, __dashed(prop), value);
       return true;
     },
   });

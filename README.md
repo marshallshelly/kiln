@@ -199,7 +199,9 @@ Getting there needed real layout geometry rather than stubs:
 - **`ResizeObserver` is real.** It runs off the layout pass: after each relayout, observed elements whose content box changed get an entry. Layout re-runs until observers stop firing, bounded at four passes like a browser's resize-loop guard.
 - **Reading geometry forces a synchronous layout flush.** This is the one that mattered. Floating-element libraries measure inside a timer, before the next frame — without a flush every rect read back as `0x0` and popups positioned themselves at the origin.
 
-`MutationObserver` and `IntersectionObserver` are still inert stubs, and `getComputedStyle` returns empty strings. Collision detection and flipping near a viewport edge are untested.
+**Floating elements do not position themselves yet.** The menu above sits below its trigger because that is where document flow puts it, not because anything computed a position. Collision detection and edge-flipping do not work.
+
+The blocker is `getComputedStyle`, which still returns empty strings. Floating-ui reads it 9 times in a bundled Base UI build — `getCssDimensions` parses `css.width`/`css.height` from it, `isContainingBlock` inspects `transform`/`filter`/`willChange`, and `getOffsetParent` walks the tree comparing `position`. With every value empty, no position is ever produced. `MutationObserver` and `IntersectionObserver` are likewise inert stubs.
 
 The headless path is not a debugging convenience. It's the deterministic reference renderer — what makes golden-image tests, CI on a machine with no display, and automated verification possible. Both paths share one document and one paint call, so they cannot drift.
 
