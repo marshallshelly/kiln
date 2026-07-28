@@ -1,0 +1,46 @@
+focus window
+window
+  window
+    unknown
+      unknown
+        header
+          heading
+            text-run value="Semantics"
+          unknown
+            unknown
+              text-run value="One"
+            unknown
+              text-run value="Two"
+        unknown
+          heading
+            text-run value="Controls"
+          button
+            text-run value="Save"
+          unknown
+            text-run value="Name"
+            text-input
+          unknown
+            check-box
+            text-run value="Subscribe"
+          unknown
+          heading
+            text-run value="Grouping"
+          unknown
+            unknown
+              text-run value="First item"
+            unknown
+              text-run value="Second item"
+          unknown
+            unknown
+              unknown
+                unknown
+                  text-run value="Key"
+                unknown
+                  text-run value="Value"
+              unknown
+                unknown
+                  text-run value="Engine"
+                unknown
+                  text-run value="Blitz"
+        unknown
+          text-run value="Footer text"

@@ -228,6 +228,7 @@ struct Run {
     presses: Vec<String>,
     snapshot: Option<String>,
     at: Option<String>,
+    a11y: Option<String>,
 }
 
 fn render(input: &str, output: &str, run: &Run) -> Result<()> {
@@ -240,6 +241,7 @@ fn render(input: &str, output: &str, run: &Run) -> Result<()> {
         presses,
         snapshot,
         at,
+        a11y,
     } = run;
     let (dom, script) = load(input)?;
 
@@ -345,6 +347,12 @@ fn render(input: &str, output: &str, run: &Run) -> Result<()> {
         dom.settle(&script);
     }
 
+    if let Some(path) = a11y {
+        std::fs::write(path, dom.accessibility_snapshot())
+            .with_context(|| format!("write {path}"))?;
+        println!("{input} -> {path}");
+    }
+
     if let Some(path) = snapshot {
         std::fs::write(path, dom.snapshot()).with_context(|| format!("write {path}"))?;
         println!("{input} -> {path}");
@@ -362,6 +370,7 @@ fn usage() -> ! {
     eprintln!("        [--click <selector>] [--click-at <x,y>] [--hover <selector>]");
     eprintln!("        [--snapshot <out.txt>] [--at <seconds>]");
     eprintln!("        [--scroll <selector,dx,dy>] [--type <text>] [--press <key>]");
+    eprintln!("        [--a11y <out.txt>]");
     eprintln!("                                     render headless to a PNG");
     std::process::exit(2)
 }
@@ -394,6 +403,7 @@ fn main() -> Result<()> {
                 presses: flag("--press"),
                 snapshot: flag("--snapshot").into_iter().next(),
                 at: flag("--at").into_iter().next(),
+                a11y: flag("--a11y").into_iter().next(),
             };
             match positional.first() {
                 Some(input) => render(
@@ -496,6 +506,22 @@ mod snapshot_tests {
     #[test]
     fn animation() {
         golden_at("animation", &[], Some(1.0));
+    }
+
+    #[test]
+    fn semantics_accessibility() {
+        let (dom, script) = load("examples/semantics.html").unwrap();
+        dom.settle(&script);
+
+        let actual = dom.accessibility_snapshot();
+        let path = "tests/golden/semantics.a11y.txt";
+        if std::env::var_os("KILN_BLESS").is_some() {
+            std::fs::write(path, &actual).unwrap();
+            return;
+        }
+        let expected = std::fs::read_to_string(path)
+            .unwrap_or_else(|_| panic!("missing {path}; run with KILN_BLESS=1"));
+        assert_eq!(expected, actual, "accessibility tree changed for semantics");
     }
 
     #[test]

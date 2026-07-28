@@ -161,6 +161,70 @@ fn write_snapshot_node(
     }
 }
 
+fn label_of(id: u64) -> String {
+    if id == u64::MAX {
+        "window".to_string()
+    } else {
+        id.to_string()
+    }
+}
+
+fn is_presentational(document: &HtmlDocument, id: u64) -> bool {
+    let Ok(node_id) = usize::try_from(id) else {
+        return false;
+    };
+    let Some(node) = document.get_node(node_id) else {
+        return false;
+    };
+
+    if let NodeData::Text(text) = &node.data {
+        if collapse(&text.content).is_empty() {
+            return true;
+        }
+        return node
+            .parent
+            .and_then(|parent| document.get_node(parent))
+            .and_then(|parent| parent.element_data())
+            .is_some_and(|element| {
+                matches!(element.name.local.as_ref(), "script" | "style" | "head")
+            });
+    }
+
+    node.element_data()
+        .is_some_and(|element| matches!(element.name.local.as_ref(), "script" | "style" | "head"))
+}
+
+fn write_accessibility_node(
+    document: &HtmlDocument,
+    nodes: &std::collections::BTreeMap<u64, &accesskit::Node>,
+    id: u64,
+    depth: usize,
+    out: &mut String,
+) {
+    use std::fmt::Write;
+
+    let Some(node) = nodes.get(&id) else {
+        return;
+    };
+    if is_presentational(document, id) {
+        return;
+    }
+    let indent = "  ".repeat(depth);
+
+    let _ = write!(out, "{indent}{}", keyword(&node.role()));
+    if let Some(label) = node.label() {
+        let _ = write!(out, " {:?}", collapse(label));
+    }
+    if let Some(value) = node.value() {
+        let _ = write!(out, " value={:?}", collapse(value));
+    }
+    let _ = writeln!(out);
+
+    for child in node.children() {
+        write_accessibility_node(document, nodes, child.0, depth + 1, out);
+    }
+}
+
 pub enum Mutation {
     ChildList {
         parent: usize,
@@ -772,6 +836,28 @@ impl Dom {
         let mut out = String::new();
         let root = document.root_node().id;
         write_snapshot_node(&document, root, "0", 0, &mut out);
+        out
+    }
+
+    pub fn accessibility_snapshot(&self) -> String {
+        use std::fmt::Write;
+
+        self.flush_layout();
+        let document = self.document.borrow();
+        let update = document.build_accessibility_tree();
+
+        let mut by_id: std::collections::BTreeMap<u64, &accesskit::Node> = Default::default();
+        for (id, node) in &update.nodes {
+            by_id.insert(id.0, node);
+        }
+
+        let mut out = String::new();
+        let _ = writeln!(out, "focus {}", label_of(update.focus.0));
+
+        let root = update.tree.as_ref().map(|tree| tree.root.0);
+        if let Some(root) = root {
+            write_accessibility_node(&document, &by_id, root, 0, &mut out);
+        }
         out
     }
 

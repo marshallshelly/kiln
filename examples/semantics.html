@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Kiln — semantics</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #0b1226;
+        color: #f4e7d3;
+        font-family: Helvetica, Arial, sans-serif;
+        font-size: 14px;
+      }
+      h1 { margin: 0 0 4px; font-size: 15px; }
+      h2 { margin: 18px 0 6px; font-size: 13px; color: #8fa0c4; }
+      nav a { margin-right: 14px; color: #7fc3ac; }
+      button {
+        padding: 7px 13px;
+        border: none;
+        border-radius: 6px;
+        background: #f5a93c;
+        color: #0b1226;
+      }
+      input, select, textarea {
+        padding: 6px 8px;
+        color: #f4e7d3;
+        background: #131e3d;
+        border: 1px solid #22315c;
+        border-radius: 6px;
+      }
+      li { margin: 3px 0; }
+      table { border-collapse: collapse; margin-top: 6px; }
+      td, th { padding: 4px 12px; border: 1px solid #22315c; text-align: left; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Semantics</h1>
+      <nav aria-label="Primary">
+        <a href="#one">One</a><a href="#two">Two</a>
+      </nav>
+    </header>
+
+    <main>
+      <h2>Controls</h2>
+      <button type="button">Save</button>
+      <label>Name <input type="text" value="Ada" /></label>
+      <label><input type="checkbox" checked /> Subscribe</label>
+      <progress value="60" max="100"></progress>
+
+      <h2>Grouping</h2>
+      <ul>
+        <li>First item</li>
+        <li>Second item</li>
+      </ul>
+
+      <table>
+        <tr><th>Key</th><th>Value</th></tr>
+        <tr><td>Engine</td><td>Blitz</td></tr>
+      </table>
+    </main>
+
+    <footer>Footer text</footer>
+  </body>
+</html>

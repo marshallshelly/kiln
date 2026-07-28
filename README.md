@@ -44,7 +44,7 @@ Honesty is the product, so here is the unflattering version.
 | **M3** | ✅ | QuickJS + DOM bridge + events — **a counter app works**; hover, checkbox, details and focus come from the engine |
 | **M4** | ✅ | transitions, `@keyframes`, custom properties, `@media` — driven by a real animation clock |
 | **M5** | ✅ | scrolling, focus, keyboard nav, text input — IME wired but unverified |
-| M6 | next | menus, tray, dialogs, clipboard, notifications, accessibility tree |
+| M6 | ◐ | accessibility tree works; menus, tray, dialogs, clipboard still to do |
 | M7 | | `kiln init/dev/build/check`, hot reload, DevTools over CDP |
 | M8 | | **Preact runs unmodified.** Tailwind works. |
 | M9 | | packaging: `.app`/`.dmg`/`.msi`/`.deb`, signing, notarization |
@@ -303,6 +303,29 @@ cargo run -- render examples/input.html out.png --type "Marshall" --scroll "#lis
 Nothing in that page polls. The input's `input` listener wrote the echo line, the list's `scroll` listener wrote `scrollTop: 90`, and the `:focus` border came from the cascade. `tests/golden/input.txt` records both strings.
 
 Wheel events go through Blitz's `EventDriver` like every other input, so scroll clamping and bubbling to the parent — then the viewport — come from the engine. Kiln's part is forwarding winit's wheel and IME events, which it previously did not, and calling `scroll_by`, since Blitz treats scrolling as the shell's job rather than the DOM's.
+
+## The accessibility tree is testable
+
+Semantic HTML maps to a real accessibility tree, and because it is text it can be a golden like everything else:
+
+```bash
+cargo run -- render examples/semantics.html out.png --a11y out.txt
+```
+
+```
+window
+  header
+    heading
+      text-run value="Semantics"
+  button
+    text-run value="Save"
+  check-box
+  text-run value="Subscribe"
+```
+
+This is also how the gap gets measured rather than assumed. Blitz's role mapping is currently thin — 21 nodes in that example come back `unknown`, including `<a>`, `<nav>`, `<main>`, `<ul>`, `<li>`, `<table>` and `<label>`. A screen reader gets nothing useful for navigation or lists. [`tests/golden/semantics.a11y.txt`](tests/golden/semantics.a11y.txt) records exactly that, so it improves visibly rather than silently.
+
+Accessibility being a golden rather than a promise is the point. PLAN.md rates it a High risk precisely because it is usually an afterthought.
 
 ## Tests read text, not pixels
 
