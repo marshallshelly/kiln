@@ -61,8 +61,88 @@ impl Devtools {
     }
 }
 
+/// Send a UI event through the same `EventDriver` path a real mouse or
+/// keyboard takes, then let layout and observers settle.
+fn drive(dom: &Dom, script: &Script, event: blitz_traits::events::UiEvent) {
+    for dispatch in dom.drive(event) {
+        if let Err(error) = script.dispatch(&dispatch) {
+            eprintln!("devtools: {error}");
+        }
+    }
+    dom.settle(script);
+}
+
 pub fn handle(method: &str, params: &Value, dom: &Dom, script: &Script) -> Value {
     match method {
+        "Input.dispatchMouseEvent" => {
+            let x = params["x"].as_f64().unwrap_or(0.0) as f32;
+            let y = params["y"].as_f64().unwrap_or(0.0) as f32;
+            match params["type"].as_str().unwrap_or_default() {
+                "mousePressed" => drive(
+                    dom,
+                    script,
+                    crate::events::pointer_button(
+                        x,
+                        y,
+                        winit::event::MouseButton::Left,
+                        winit::event::ElementState::Pressed,
+                    ),
+                ),
+                "mouseReleased" => drive(
+                    dom,
+                    script,
+                    crate::events::pointer_button(
+                        x,
+                        y,
+                        winit::event::MouseButton::Left,
+                        winit::event::ElementState::Released,
+                    ),
+                ),
+                "mouseMoved" => drive(dom, script, crate::events::pointer_move(x, y)),
+                "mouseWheel" => {
+                    let dx = params["deltaX"].as_f64().unwrap_or(0.0);
+                    let dy = params["deltaY"].as_f64().unwrap_or(0.0);
+                    drive(dom, script, crate::events::wheel_pixels(x, y, dx, dy));
+                    let anchor = dom.hover_node();
+                    for dispatch in dom.scroll(anchor, -dx, -dy) {
+                        let _ = script.dispatch(&dispatch);
+                    }
+                    dom.settle(script);
+                }
+                _ => {}
+            }
+            json!({})
+        }
+
+        "Input.insertText" => {
+            for ch in params["text"].as_str().unwrap_or_default().chars() {
+                let ch = ch.to_string();
+                for pressed in [true, false] {
+                    drive(dom, script, crate::events::text_key(&ch, pressed));
+                }
+            }
+            json!({})
+        }
+
+        "Input.dispatchKeyEvent" => {
+            let pressed = params["type"].as_str().unwrap_or_default() != "keyUp";
+            let key = params["key"].as_str().unwrap_or_default();
+            match crate::events::named(key, pressed) {
+                Some(event) => drive(dom, script, event),
+                None => {
+                    let text = params["text"].as_str().unwrap_or(key);
+                    if !text.is_empty() {
+                        drive(dom, script, crate::events::text_key(text, pressed));
+                    }
+                }
+            }
+            json!({})
+        }
+
+        "DOM.querySelector" => {
+            let selector = params["selector"].as_str().unwrap_or_default();
+            json!({ "nodeId": dom.query_selector(selector).unwrap_or(0) })
+        }
         "Runtime.evaluate" => {
             let expression = params["expression"].as_str().unwrap_or_default();
             match script.evaluate(expression) {

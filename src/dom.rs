@@ -277,6 +277,10 @@ pub struct Record {
 pub struct Journal {
     records: std::collections::VecDeque<Record>,
     next: u64,
+    /// One cursor per registered consumer. Records are only dropped once
+    /// *every* consumer has passed them — a single reader retaining on its own
+    /// would silently starve the others.
+    cursors: Vec<u64>,
 }
 
 impl Journal {
@@ -296,8 +300,18 @@ impl Journal {
             .filter(move |record| record.seq >= cursor)
     }
 
-    pub fn retain_from(&mut self, seq: u64) {
-        while self.records.front().is_some_and(|record| record.seq < seq) {
+    /// Claim a cursor. The returned id is passed back to [`Journal::advance`].
+    pub fn register(&mut self) -> usize {
+        self.cursors.push(self.next);
+        self.cursors.len() - 1
+    }
+
+    pub fn advance(&mut self, consumer: usize, seq: u64) {
+        if let Some(cursor) = self.cursors.get_mut(consumer) {
+            *cursor = seq;
+        }
+        let low = self.cursors.iter().copied().min().unwrap_or(self.next);
+        while self.records.front().is_some_and(|record| record.seq < low) {
             self.records.pop_front();
         }
     }
@@ -1117,14 +1131,37 @@ mod tests {
     }
 
     #[test]
+    fn records_survive_until_every_consumer_has_read_them() {
+        let dom = Dom::from_html("<html><body><p></p></body></html>", None, 100, 100, 1.0);
+        let node = dom.query_selector("p").unwrap();
+
+        let observer = dom.journal().borrow_mut().register();
+        let recorder = dom.journal().borrow_mut().register();
+
+        dom.set_attribute(node, "a", "1");
+        dom.set_attribute(node, "b", "2");
+
+        // One consumer reading everything must not drop what the other has not
+        // seen. This is what broke record/replay: the observer retained
+        // eagerly and the recorder found an empty journal.
+        let head = dom.journal().borrow().next_seq();
+        dom.journal().borrow_mut().advance(observer, head);
+        assert_eq!(dom.journal().borrow().since(0).count(), 2);
+
+        dom.journal().borrow_mut().advance(recorder, head);
+        assert_eq!(dom.journal().borrow().since(0).count(), 0);
+    }
+
+    #[test]
     fn retain_from_drops_consumed_records() {
         let dom = Dom::from_html("<html><body><p></p></body></html>", None, 100, 100, 1.0);
         let node = dom.query_selector("p").unwrap();
         dom.set_attribute(node, "a", "1");
         dom.set_attribute(node, "b", "2");
 
+        let only = dom.journal().borrow_mut().register();
         let cursor = dom.journal().borrow().next_seq();
-        dom.journal().borrow_mut().retain_from(cursor);
+        dom.journal().borrow_mut().advance(only, cursor);
 
         assert_eq!(dom.journal().borrow().since(0).count(), 0);
         assert_eq!(dom.journal().borrow().next_seq(), cursor);

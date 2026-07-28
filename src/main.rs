@@ -4,6 +4,7 @@ mod dom;
 mod events;
 mod native;
 mod package;
+mod replay;
 mod script;
 
 use std::sync::Arc;
@@ -620,6 +621,63 @@ fn build(input: &str, out: &str) -> Result<()> {
     Ok(())
 }
 
+fn trace(input: &str, args: &[String], out: Option<&String>) -> Result<()> {
+    let flag = |name: &str| -> Vec<String> {
+        args.windows(2)
+            .filter(|pair| pair[0] == name)
+            .map(|pair| pair[1].clone())
+            .collect()
+    };
+
+    // Steps are taken in the order the flags appear, so a trace reproduces the
+    // interaction rather than a canonical ordering of it.
+    let mut steps = Vec::new();
+    let mut index = 0;
+    while index < args.len() {
+        let value = args.get(index + 1).cloned().unwrap_or_default();
+        match args[index].as_str() {
+            "--click" => steps.push(replay::Step::Click(value)),
+            "--type" => steps.push(replay::Step::Type(value)),
+            "--press" => steps.push(replay::Step::Press(value)),
+            "--at" => {
+                if let Ok(seconds) = value.parse() {
+                    steps.push(replay::Step::At(seconds));
+                }
+            }
+            "--scroll" => {
+                let mut parts = value.split(',');
+                if let (Some(sel), Some(dx), Some(dy)) = (parts.next(), parts.next(), parts.next())
+                    && let (Ok(dx), Ok(dy)) = (dx.trim().parse(), dy.trim().parse())
+                {
+                    steps.push(replay::Step::Scroll(sel.trim().to_string(), dx, dy));
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    let _ = flag;
+
+    let path = out.map_or_else(|| std::path::PathBuf::from("trace.kiln"), Into::into);
+    let outcome = replay::record(input, &steps, &path)?;
+    println!(
+        "recorded {} steps, {} mutations -> {}",
+        outcome.steps,
+        outcome.mutations,
+        path.display()
+    );
+    Ok(())
+}
+
+fn replay_trace(input: &str, trace: &str) -> Result<()> {
+    let outcome = replay::replay(input, std::path::Path::new(trace))?;
+    println!(
+        "replayed {} steps, {} mutations — identical to the recording",
+        outcome.steps, outcome.mutations
+    );
+    Ok(())
+}
+
 fn package(input: &str, args: &[String]) -> Result<()> {
     let entry = std::path::Path::new(input);
     let flag = |name: &str| -> Option<String> {
@@ -718,6 +776,10 @@ fn usage() -> ! {
     eprintln!("  kiln check  <page.html|style.css>...");
     eprintln!("                                     report unsupported CSS");
     eprintln!("  kiln build  <page.html> [outdir]   bundle the app and its scripts");
+    eprintln!("  kiln record <page.html> [--out trace.kiln] [--click …] [--type …]");
+    eprintln!("                                     record an interaction and its mutations");
+    eprintln!("  kiln replay <page.html> <trace.kiln>");
+    eprintln!("                                     replay it and assert nothing diverged");
     eprintln!("  kiln package <page.html>           build a .app");
     eprintln!("        [--name N] [--identifier ID] [--version V] [--out DIR]");
     eprintln!("        [--dmg] (macOS)  [--deb] (Linux)  [--msi] (Windows)");
@@ -785,6 +847,20 @@ fn main() -> Result<()> {
         Some("package") => match args.get(1) {
             Some(input) => package(input, &args[1..]),
             None => usage(),
+        },
+        Some("record") => match args.get(1) {
+            Some(input) => {
+                let out = args
+                    .windows(2)
+                    .find(|pair| pair[0] == "--out")
+                    .map(|pair| pair[1].clone());
+                trace(input, &args[1..], out.as_ref())
+            }
+            None => usage(),
+        },
+        Some("replay") => match (args.get(1), args.get(2)) {
+            (Some(input), Some(trace)) => replay_trace(input, trace),
+            _ => usage(),
         },
         Some("check") => {
             let inputs: Vec<String> = args[1..].to_vec();
@@ -910,6 +986,86 @@ mod snapshot_tests {
     #[test]
     fn animation() {
         golden_at("animation", &[], Some(1.0));
+    }
+
+    #[test]
+    fn replay_detects_both_kinds_of_divergence() {
+        let dir = std::env::temp_dir().join("kiln-replay-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let trace = dir.join("counter.kiln");
+
+        let steps = vec![
+            replay::Step::Click("#inc".into()),
+            replay::Step::Click("#inc".into()),
+            replay::Step::Click("#dec".into()),
+        ];
+        let recorded = replay::record("examples/counter.html", &steps, &trace).unwrap();
+        assert!(recorded.mutations > 0, "the counter should mutate the DOM");
+
+        // The happy path: same input, same everything.
+        replay::replay("examples/counter.html", &trace).unwrap();
+
+        let source = std::fs::read_to_string(&trace).unwrap();
+
+        // A different route through the same nodes.
+        let route = dir.join("route.kiln");
+        std::fs::write(&route, source.replace("# 4 characterData", "# 4 attribute")).unwrap();
+        assert!(
+            replay::replay("examples/counter.html", &route).is_err(),
+            "a changed mutation sequence must fail"
+        );
+
+        // The same route to a different place. Clicking increment three times
+        // touches exactly the nodes that two increments and a decrement do, in
+        // the same order, so only the end state tells them apart.
+        let destination = dir.join("destination.kiln");
+        std::fs::write(&destination, source.replace("click #dec", "click #inc")).unwrap();
+        let error = replay::replay("examples/counter.html", &destination)
+            .err()
+            .expect("a changed end state must fail");
+        assert!(
+            error.to_string().contains("tree"),
+            "the tree digest is what should catch this, got: {error}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn automation_drives_the_document_over_cdp() {
+        use serde_json::json;
+
+        let (dom, script, _native) = load("examples/counter.html").unwrap();
+        dom.settle(&script);
+
+        let call = |method: &str, params: serde_json::Value| {
+            devtools::handle(method, &params, &dom, &script)
+        };
+
+        let read = || {
+            call(
+                "Runtime.evaluate",
+                json!({ "expression": "document.querySelector('#count').textContent" }),
+            )["result"]["value"]
+                .clone()
+        };
+        assert_eq!(read(), json!("0"));
+
+        // Find the button the way an automation client would, then click it
+        // through the same EventDriver path a real mouse uses.
+        let node = call("DOM.querySelector", json!({ "selector": "#inc" }))["nodeId"]
+            .as_u64()
+            .unwrap() as usize;
+        let (x, y) = dom.center_of(node).unwrap();
+
+        for kind in ["mousePressed", "mouseReleased"] {
+            call(
+                "Input.dispatchMouseEvent",
+                json!({ "type": kind, "x": x, "y": y }),
+            );
+        }
+        assert_eq!(read(), json!("1"), "a dispatched click must reach the app");
     }
 
     #[test]

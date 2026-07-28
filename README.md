@@ -10,7 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/marshallshelly/kiln?style=flat-square&color=0B1226&label=stars" alt="Stars">
-  <img src="https://img.shields.io/badge/status-M0--M8--F5A93C?style=flat-square" alt="Status: M0 to M8">
+  <img src="https://img.shields.io/badge/status-M0--M10--F5A93C?style=flat-square" alt="Status: M0 to M10">
   <img src="https://github.com/marshallshelly/kiln/actions/workflows/ci.yml/badge.svg" alt="CI">
   <img src="https://img.shields.io/badge/built%20with-Rust-0B1226?style=flat-square" alt="Built with Rust">
   <img src="https://img.shields.io/badge/license-Apache--2.0-0B1226?style=flat-square" alt="Apache-2.0 license">
@@ -49,8 +49,8 @@ Honesty is the product, so here is the unflattering version.
 | **M7** | ✅ | `init`, `dev` with reload on save, `check`, `build`, DevTools over CDP |
 | **M8** | ✅ | **Preact runs unmodified. Tailwind works.** |
 | M9 | ◐ | `.app` and `.dmg` work on macOS; signing and notarization untested; `.msi`/`.deb` and the updater to do |
-| M10 | next | automation server, record/replay, deterministic screenshots |
-| M11 | | static TypeScript compilation tier |
+| **M10** | ✅ | automation over CDP, record/replay as a determinism oracle |
+| M11 | next | static TypeScript compilation tier |
 
 M3 is when this becomes demonstrable. M8 is when you could port something real.
 
@@ -412,6 +412,29 @@ window
 This is also how the gap gets measured rather than assumed. Blitz's role mapping is currently thin — 21 nodes in that example come back `unknown`, including `<a>`, `<nav>`, `<main>`, `<ul>`, `<li>`, `<table>` and `<label>`. A screen reader gets nothing useful for navigation or lists. [`tests/golden/semantics.a11y.txt`](tests/golden/semantics.a11y.txt) records exactly that, so it improves visibly rather than silently.
 
 Accessibility being a golden rather than a promise is the point. PLAN.md rates it a High risk precisely because it is usually an afterthought.
+
+## Record and replay
+
+An interaction can be recorded and replayed, and the replay fails if anything about the run changed:
+
+```console
+$ kiln record examples/counter.html --out t.kiln --click "#inc" --click "#inc" --click "#dec"
+recorded 3 steps, 6 mutations -> t.kiln
+
+$ kiln replay examples/counter.html t.kiln
+replayed 3 steps, 6 mutations — identical to the recording
+```
+
+The trace holds the interaction and a fingerprint of what the document did — every DOM mutation in order, plus a digest of the settled tree. Both halves earn their place: the mutation sequence catches a different *route*, and the digest catches a different *destination*. Clicking increment three times touches the same nodes in the same order as two increments and a decrement, so without the digest the oracle would call them identical.
+
+Automation runs over the same CDP server DevTools uses, rather than a second protocol:
+
+```js
+await send("DOM.querySelector", { selector: "#inc" });
+await send("Input.dispatchMouseEvent", { type: "mousePressed", x, y });
+```
+
+Dispatched input goes through the same `EventDriver` path a real mouse takes, so anything an automation client can do, a user could have done.
 
 ## Tests read text, not pixels
 

@@ -881,10 +881,11 @@ fn bind_journal<'js>(ctx: &Ctx<'js>, kiln: &Object<'js>, dom: Dom) -> rquickjs::
             take_mutations(ctx, &take, cursor)
         })?,
     )?;
+    let consumer = dom.journal().borrow_mut().register();
     kiln.set(
         "retainMutationsFrom",
         Function::new(ctx.clone(), move |seq: u64| {
-            dom.journal().borrow_mut().retain_from(seq);
+            dom.journal().borrow_mut().advance(consumer, seq);
         })?,
     )?;
     Ok(())
