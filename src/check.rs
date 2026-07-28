@@ -46,17 +46,19 @@ fn property_rule(property: &str, value: &str) -> Option<(&'static str, &'static 
         "position" if value.trim() == "sticky" => {
             Some(("KC1201", "use a fixed header plus scroll padding"))
         }
-        "text-overflow" if value.trim().starts_with("ellipsis") => {
-            Some(("KC1210", "clips without an ellipsis — truncate the text yourself"))
-        }
-        "display" if value.trim().starts_with("table") => {
-            Some(("KC1102", "use flexbox or grid"))
-        }
+        "text-overflow" if value.trim().starts_with("ellipsis") => Some((
+            "KC1210",
+            "clips without an ellipsis — truncate the text yourself",
+        )),
+        "display" if value.trim().starts_with("table") => Some(("KC1102", "use flexbox or grid")),
         "grid-template-columns" if value.contains("subgrid") => {
             Some(("KC1103", "subgrid is not supported — restate the tracks"))
         }
         "transform" | "translate" if value.contains("3d") || value.contains("perspective") => {
-            Some(("KC1320", "3D transforms are not supported — use the 2D subset"))
+            Some((
+                "KC1320",
+                "3D transforms are not supported — use the 2D subset",
+            ))
         }
         _ => None,
     }
@@ -236,13 +238,7 @@ fn collect(parser: &mut Parser<'_, '_>, out: &mut String) {
     }
 }
 
-fn record(
-    text: &str,
-    line: u32,
-    column: u32,
-    selector: Option<&str>,
-    report: &mut Report,
-) {
+fn record(text: &str, line: u32, column: u32, selector: Option<&str>, report: &mut Report) {
     let text = text.trim();
     if text.is_empty() {
         return;
@@ -388,8 +384,8 @@ pub fn linked_stylesheets(html: &str, base: &Path) -> Vec<std::path::PathBuf> {
 }
 
 pub fn check_path(path: &Path) -> Result<Report> {
-    let source = std::fs::read_to_string(path)
-        .with_context(|| format!("read {}", path.display()))?;
+    let source =
+        std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let mut report = Report::default();
 
     if path.extension().and_then(|ext| ext.to_str()) == Some("css") {
@@ -446,7 +442,14 @@ pub fn render_report(path: &Path, report: &Report) -> String {
 
     let _ = writeln!(out);
 
-    type Group = (usize, &'static str, u32, u32, Option<String>, Option<String>);
+    type Group = (
+        usize,
+        &'static str,
+        u32,
+        u32,
+        Option<String>,
+        Option<String>,
+    );
     let mut grouped: BTreeMap<(&str, String), Group> = BTreeMap::new();
     for finding in &report.findings {
         let key = (finding.code, finding.declaration.clone());

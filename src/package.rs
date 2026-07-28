@@ -26,7 +26,8 @@ fn assets(entry: &Path, dom: &crate::dom::Dom) -> Result<Vec<(PathBuf, String)>>
         }
     }
 
-    let html = std::fs::read_to_string(entry).with_context(|| format!("read {}", entry.display()))?;
+    let html =
+        std::fs::read_to_string(entry).with_context(|| format!("read {}", entry.display()))?;
     for sheet in crate::check::linked_stylesheets(&html, Path::new("")) {
         let relative = sheet.to_string_lossy().into_owned();
         out.push((base.join(&relative), relative));
@@ -85,8 +86,7 @@ pub fn bundle(entry: &Path, dom: &crate::dom::Dom, options: &Options) -> Result<
     let executable = macos.join(&options.name);
     std::fs::copy(&runtime, &executable).with_context(|| format!("copy {}", runtime.display()))?;
 
-    std::fs::write(contents.join("Info.plist"), info_plist(options))
-        .context("write Info.plist")?;
+    std::fs::write(contents.join("Info.plist"), info_plist(options)).context("write Info.plist")?;
     std::fs::write(contents.join("PkgInfo"), "APPL????").context("write PkgInfo")?;
 
     for (from, relative) in assets(entry, dom)? {
@@ -113,7 +113,14 @@ pub fn bundle(entry: &Path, dom: &crate::dom::Dom, options: &Options) -> Result<
 
 fn sign(app: &Path, identity: &str) -> Result<()> {
     let status = std::process::Command::new("codesign")
-        .args(["--force", "--deep", "--options", "runtime", "--sign", identity])
+        .args([
+            "--force",
+            "--deep",
+            "--options",
+            "runtime",
+            "--sign",
+            identity,
+        ])
         .arg(app)
         .status()
         .context("run codesign — is it on PATH?")?;
@@ -129,7 +136,13 @@ fn sign(app: &Path, identity: &str) -> Result<()> {
 /// has never seen it. Requires a stored `notarytool` profile.
 fn notarize(target: &Path, profile: &str) -> Result<()> {
     let status = std::process::Command::new("xcrun")
-        .args(["notarytool", "submit", "--wait", "--keychain-profile", profile])
+        .args([
+            "notarytool",
+            "submit",
+            "--wait",
+            "--keychain-profile",
+            profile,
+        ])
         .arg(target)
         .status()
         .context("run xcrun notarytool — are the Xcode command line tools installed?")?;

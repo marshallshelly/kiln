@@ -51,7 +51,8 @@ impl Native {
     pub fn realise(&self) -> Result<()> {
         let menu = muda::Menu::new();
         for node in self.menu.borrow().iter() {
-            menu.append(&*build_item(node)?).context("append menu item")?;
+            menu.append(&*build_item(node)?)
+                .context("append menu item")?;
         }
 
         #[cfg(target_os = "macos")]
@@ -62,7 +63,9 @@ impl Native {
         if !self.tray_menu.borrow().is_empty() {
             let tray_menu = muda::Menu::new();
             for node in self.tray_menu.borrow().iter() {
-                tray_menu.append(&*build_item(node)?).context("append tray item")?;
+                tray_menu
+                    .append(&*build_item(node)?)
+                    .context("append tray item")?;
             }
 
             let tray = tray_icon::TrayIconBuilder::new()

@@ -928,34 +928,52 @@ impl Script {
                     }};
                 }
 
-                bind!("createElement", d, move |tag: String| d.create_element(&tag));
-                bind!("createText", d, move |text: String| d.create_text_node(&text));
+                bind!("createElement", d, move |tag: String| d
+                    .create_element(&tag));
+                bind!("createText", d, move |text: String| d
+                    .create_text_node(&text));
                 bind!("appendChild", d, move |parent: usize, child: usize| d
                     .append_child(parent, child));
                 bind!("insertBefore", d, move |child: usize, reference: usize| d
                     .insert_before(child, reference));
                 bind!("removeChild", d, move |child: usize| d.remove_child(child));
-                bind!("setAttribute", d, move |id: usize, name: String, value: String| d
-                    .set_attribute(id, &name, &value));
+                bind!(
+                    "setAttribute",
+                    d,
+                    move |id: usize, name: String, value: String| d
+                        .set_attribute(id, &name, &value)
+                );
                 bind!("removeAttribute", d, move |id: usize, name: String| d
                     .remove_attribute(id, &name));
                 bind!("getAttribute", d, move |id: usize, name: String| d
                     .attribute(id, &name));
-                bind!("setStyle", d, move |id: usize, name: String, value: String| d
-                    .set_style_property(id, &name, &value));
+                bind!(
+                    "setStyle",
+                    d,
+                    move |id: usize, name: String, value: String| d
+                        .set_style_property(id, &name, &value)
+                );
                 bind!("parent", d, move |id: usize| d.parent(id));
                 bind!("nextSibling", d, move |id: usize| d.next_sibling(id));
                 bind!("children", d, move |id: usize| d.children(id));
                 bind!("tagName", d, move |id: usize| d.tag_name(id));
                 bind!("isText", d, move |id: usize| d.is_text(id));
                 bind!("body", d, move || d.body());
-                bind!("querySelectorIn", d, move |root: Option<usize>, sel: String| d
-                    .query_selector_all(root, &sel)
-                    .first()
-                    .copied());
-                bind!("querySelectorAllIn", d, move |root: Option<usize>, sel: String| d
-                    .query_selector_all(root, &sel));
-                bind!("matches", d, move |id: usize, sel: String| d.matches(id, &sel));
+                bind!(
+                    "querySelectorIn",
+                    d,
+                    move |root: Option<usize>, sel: String| d
+                        .query_selector_all(root, &sel)
+                        .first()
+                        .copied()
+                );
+                bind!(
+                    "querySelectorAllIn",
+                    d,
+                    move |root: Option<usize>, sel: String| d.query_selector_all(root, &sel)
+                );
+                bind!("matches", d, move |id: usize, sel: String| d
+                    .matches(id, &sel));
                 bind!("focus", d, move |id: Option<usize>| d.focus(id));
                 bind!("activeElement", d, move || d.active_element());
                 bind!("getValue", d, move |id: usize| d.value(id));
@@ -1021,7 +1039,8 @@ impl Script {
                         message_native.message(&title, &body);
                     })?,
                 )?;
-                bind!("setValue", d, move |id: usize, v: String| d.set_value(id, &v));
+                bind!("setValue", d, move |id: usize, v: String| d
+                    .set_value(id, &v));
                 bind!("rect", d, move |id: usize| d.client_rect(id));
                 bind!("boxMetrics", d, move |id: usize| d.box_metrics(id));
                 bind!("viewportSize", d, move || d.viewport_size());

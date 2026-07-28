@@ -132,9 +132,7 @@ pub fn wheel(x: f32, y: f32, delta: MouseScrollDelta) -> UiEvent {
         MouseScrollDelta::LineDelta(dx, dy) => {
             BlitzWheelDelta::Lines(f64::from(-dx), f64::from(-dy))
         }
-        MouseScrollDelta::PixelDelta(position) => {
-            BlitzWheelDelta::Pixels(-position.x, -position.y)
-        }
+        MouseScrollDelta::PixelDelta(position) => BlitzWheelDelta::Pixels(-position.x, -position.y),
     };
 
     UiEvent::Wheel(BlitzWheelEvent {

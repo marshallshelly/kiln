@@ -122,8 +122,12 @@ impl App {
         self.scale = window.scale_factor() as f32;
         self.size = (size.width, size.height);
 
-        self.renderer
-            .resume(Arc::clone(&window) as Arc<_>, size.width, size.height, || {});
+        self.renderer.resume(
+            Arc::clone(&window) as Arc<_>,
+            size.width,
+            size.height,
+            || {},
+        );
         if !self.renderer.complete_resume() {
             bail!("renderer failed to initialize");
         }
@@ -443,8 +447,8 @@ fn render(input: &str, output: &str, run: &Run) -> Result<()> {
 
     for name in presses {
         for pressed in [true, false] {
-            let event = events::named(name, pressed)
-                .with_context(|| format!("unknown key {name}"))?;
+            let event =
+                events::named(name, pressed).with_context(|| format!("unknown key {name}"))?;
             for dispatch in dom.drive(event) {
                 script.dispatch(&dispatch)?;
             }
@@ -455,8 +459,18 @@ fn render(input: &str, output: &str, run: &Run) -> Result<()> {
     for spec in scrolls {
         let mut parts = spec.split(',');
         let selector = parts.next().context("--scroll expects SELECTOR,DX,DY")?;
-        let dx: f64 = parts.next().context("--scroll DX")?.trim().parse().context("--scroll DX")?;
-        let dy: f64 = parts.next().context("--scroll DY")?.trim().parse().context("--scroll DY")?;
+        let dx: f64 = parts
+            .next()
+            .context("--scroll DX")?
+            .trim()
+            .parse()
+            .context("--scroll DX")?;
+        let dy: f64 = parts
+            .next()
+            .context("--scroll DY")?
+            .trim()
+            .parse()
+            .context("--scroll DY")?;
 
         let node = dom
             .query_selector(selector.trim())
@@ -584,11 +598,8 @@ fn build(input: &str, out: &str) -> Result<()> {
     std::fs::create_dir_all(out).with_context(|| format!("create {}", out.display()))?;
     let mut copied = 0usize;
 
-    let name = entry
-        .file_name()
-        .context("entry has no file name")?;
-    std::fs::copy(entry, out.join(name))
-        .with_context(|| format!("copy {}", entry.display()))?;
+    let name = entry.file_name().context("entry has no file name")?;
+    std::fs::copy(entry, out.join(name)).with_context(|| format!("copy {}", entry.display()))?;
     copied += 1;
 
     for source in dom.scripts() {
@@ -782,6 +793,30 @@ fn main() -> Result<()> {
 mod snapshot_tests {
     use super::*;
 
+    /// Compare a golden that is the same everywhere: CSS reports, the
+    /// accessibility tree, the menu model.
+    #[track_caller]
+    fn compare(path: &str, actual: &str) {
+        if std::env::var_os("KILN_BLESS").is_some() {
+            std::fs::write(path, actual).unwrap();
+            return;
+        }
+        let expected = std::fs::read_to_string(path)
+            .unwrap_or_else(|_| panic!("missing {path}; run with KILN_BLESS=1"));
+        assert_eq!(expected, actual, "golden changed: {path}");
+    }
+
+    /// Tree snapshots record box sizes, which depend on the installed fonts, so
+    /// they are only compared on the platform they were blessed on. Every
+    /// platform still *runs* the code that produces them, which is what catches
+    /// panics and logic errors in CI — only the byte comparison is skipped.
+    #[track_caller]
+    fn compare_layout(path: &str, actual: &str) {
+        if cfg!(target_os = "macos") || std::env::var_os("KILN_BLESS").is_some() {
+            compare(path, actual);
+        }
+    }
+
     fn golden(name: &str, clicks: &[&str]) {
         golden_at(name, clicks, None);
     }
@@ -810,16 +845,7 @@ mod snapshot_tests {
         }
 
         let actual = dom.snapshot();
-        let path = format!("tests/golden/{name}.txt");
-
-        if std::env::var_os("KILN_BLESS").is_some() {
-            std::fs::write(&path, &actual).unwrap();
-            return;
-        }
-
-        let expected = std::fs::read_to_string(&path)
-            .unwrap_or_else(|_| panic!("missing {path}; run with KILN_BLESS=1"));
-        assert_eq!(expected, actual, "snapshot changed for {name}");
+        compare_layout(&format!("tests/golden/{name}.txt"), &actual);
     }
 
     #[test]
@@ -1003,7 +1029,8 @@ mod snapshot_tests {
         // so the HTML's own links still resolve inside the bundle.
         assert!(app.join("Contents/Resources/app/index.html").is_file());
         assert!(
-            app.join("Contents/Resources/app/vendor/tailwind.css").is_file(),
+            app.join("Contents/Resources/app/vendor/tailwind.css")
+                .is_file(),
             "a linked stylesheet must travel with the app"
         );
 
@@ -1063,7 +1090,10 @@ mod snapshot_tests {
     fn check_reports_tailwind_utilities_the_page_uses() {
         // The vendored stylesheet ships utilities this page never references.
         let clean = check::check_path(std::path::Path::new("examples/tailwind.html")).unwrap();
-        assert!(clean.declarations > 300, "the linked stylesheet was not read");
+        assert!(
+            clean.declarations > 300,
+            "the linked stylesheet was not read"
+        );
         assert!(
             clean.findings.is_empty(),
             "unused utilities should not be reported: {:?}",
@@ -1110,14 +1140,7 @@ mod snapshot_tests {
         let report = check::check_path(path).unwrap();
         let actual = check::render_report(path, &report);
 
-        let golden = "tests/golden/check.txt";
-        if std::env::var_os("KILN_BLESS").is_some() {
-            std::fs::write(golden, &actual).unwrap();
-            return;
-        }
-        let expected = std::fs::read_to_string(golden)
-            .unwrap_or_else(|_| panic!("missing {golden}; run with KILN_BLESS=1"));
-        assert_eq!(expected, actual, "check report changed");
+        compare("tests/golden/check.txt", &actual);
     }
 
     #[test]
@@ -1143,14 +1166,7 @@ mod snapshot_tests {
         dom.settle(&script);
 
         let actual = format!("{}\n{}", native.menu_snapshot(), native.tray_snapshot());
-        let path = "tests/golden/native.menu.txt";
-        if std::env::var_os("KILN_BLESS").is_some() {
-            std::fs::write(path, &actual).unwrap();
-            return;
-        }
-        let expected = std::fs::read_to_string(path)
-            .unwrap_or_else(|_| panic!("missing {path}; run with KILN_BLESS=1"));
-        assert_eq!(expected, actual, "menu model changed");
+        compare("tests/golden/native.menu.txt", &actual);
     }
 
     #[test]
@@ -1174,14 +1190,7 @@ mod snapshot_tests {
         dom.settle(&script);
 
         let actual = dom.accessibility_snapshot();
-        let path = "tests/golden/semantics.a11y.txt";
-        if std::env::var_os("KILN_BLESS").is_some() {
-            std::fs::write(path, &actual).unwrap();
-            return;
-        }
-        let expected = std::fs::read_to_string(path)
-            .unwrap_or_else(|_| panic!("missing {path}; run with KILN_BLESS=1"));
-        assert_eq!(expected, actual, "accessibility tree changed for semantics");
+        compare("tests/golden/semantics.a11y.txt", &actual);
     }
 
     #[test]
@@ -1214,13 +1223,6 @@ mod snapshot_tests {
         dom.settle(&script);
 
         let actual = dom.snapshot();
-        let path = "tests/golden/input.txt";
-        if std::env::var_os("KILN_BLESS").is_some() {
-            std::fs::write(path, &actual).unwrap();
-            return;
-        }
-        let expected = std::fs::read_to_string(path)
-            .unwrap_or_else(|_| panic!("missing {path}; run with KILN_BLESS=1"));
-        assert_eq!(expected, actual, "snapshot changed for input");
+        compare_layout("tests/golden/input.txt", &actual);
     }
 }

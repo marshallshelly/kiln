@@ -261,7 +261,14 @@ fn serve(mut stream: TcpStream, port: u16, sender: Sender<Call>) -> Result<()> {
         let params = request["params"].clone();
 
         let (reply, answer) = channel();
-        if sender.send(Call { method, params, reply }).is_err() {
+        if sender
+            .send(Call {
+                method,
+                params,
+                reply,
+            })
+            .is_err()
+        {
             return Ok(());
         }
 
@@ -300,7 +307,9 @@ fn respond_discovery(stream: &mut TcpStream, port: u16, head: &str) -> Result<()
         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
         body.len()
     );
-    stream.write_all(response.as_bytes()).context("write discovery")?;
+    stream
+        .write_all(response.as_bytes())
+        .context("write discovery")?;
     stream.flush().context("flush discovery")?;
     Ok(())
 }

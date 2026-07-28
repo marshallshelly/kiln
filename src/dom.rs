@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use anyhow::{Context, Result};
 use blitz_dom::{DocumentConfig, EventDriver, NodeData, QualName, ns};
-use blitz_traits::events::UiEvent;
 use blitz_html::HtmlDocument;
+use blitz_traits::events::UiEvent;
 use blitz_traits::shell::{ColorScheme, Viewport};
 
 pub enum Script {
@@ -98,9 +98,7 @@ fn write_snapshot_node(
                 .parent
                 .and_then(|parent| document.get_node(parent))
                 .and_then(|parent| parent.element_data())
-                .is_some_and(|element| {
-                    matches!(element.name.local.as_ref(), "script" | "style")
-                });
+                .is_some_and(|element| matches!(element.name.local.as_ref(), "script" | "style"));
             let content = collapse(&text.content);
             if opaque {
                 let _ = writeln!(out, "{indent}{path} <{} chars>", content.len());
@@ -293,7 +291,9 @@ impl Journal {
     }
 
     pub fn since(&self, cursor: u64) -> impl Iterator<Item = &Record> {
-        self.records.iter().filter(move |record| record.seq >= cursor)
+        self.records
+            .iter()
+            .filter(move |record| record.seq >= cursor)
     }
 
     pub fn retain_from(&mut self, seq: u64) {
@@ -377,9 +377,12 @@ impl Dom {
     }
 
     pub fn set_viewport(&self, width: u32, height: u32, scale: f32) {
-        self.document
-            .borrow_mut()
-            .set_viewport(Viewport::new(width, height, scale, ColorScheme::Light));
+        self.document.borrow_mut().set_viewport(Viewport::new(
+            width,
+            height,
+            scale,
+            ColorScheme::Light,
+        ));
     }
 
     pub fn resolve(&self) {
@@ -410,8 +413,22 @@ impl Dom {
         self.resolve();
     }
 
-    pub fn paint(&self, scene: &mut impl anyrender::PaintScene, scale: f64, width: u32, height: u32) {
-        blitz_paint::paint_scene(scene, &mut self.document.borrow_mut(), scale, width, height, 0, 0);
+    pub fn paint(
+        &self,
+        scene: &mut impl anyrender::PaintScene,
+        scale: f64,
+        width: u32,
+        height: u32,
+    ) {
+        blitz_paint::paint_scene(
+            scene,
+            &mut self.document.borrow_mut(),
+            scale,
+            width,
+            height,
+            0,
+            0,
+        );
     }
 
     pub fn query_selector(&self, selector: &str) -> Option<usize> {
@@ -492,7 +509,10 @@ impl Dom {
             return None;
         }
         let position = node.absolute_position(0.0, 0.0);
-        Some((position.x + size.width / 2.0, position.y + size.height / 2.0))
+        Some((
+            position.x + size.width / 2.0,
+            position.y + size.height / 2.0,
+        ))
     }
 
     pub fn text_content(&self, node_id: usize) -> String {
@@ -522,14 +542,11 @@ impl Dom {
             if matches!(node.data, NodeData::Text(_)) {
                 Some(node_id)
             } else {
-                node.children
-                    .iter()
-                    .copied()
-                    .find(|child| {
-                        document
-                            .get_node(*child)
-                            .is_some_and(|n| matches!(n.data, NodeData::Text(_)))
-                    })
+                node.children.iter().copied().find(|child| {
+                    document
+                        .get_node(*child)
+                        .is_some_and(|n| matches!(n.data, NodeData::Text(_)))
+                })
             }
         };
 
@@ -578,7 +595,9 @@ impl Dom {
 
     pub fn create_element(&self, tag: &str) -> usize {
         let mut document = self.document.borrow_mut();
-        document.mutate().create_element(Self::element_name(tag), Vec::new())
+        document
+            .mutate()
+            .create_element(Self::element_name(tag), Vec::new())
     }
 
     pub fn create_text_node(&self, text: &str) -> usize {
@@ -635,7 +654,9 @@ impl Dom {
         let old_value = self.attribute(node_id, name);
         {
             let mut document = self.document.borrow_mut();
-            document.mutate().set_attribute(node_id, Self::attr_name(name), value);
+            document
+                .mutate()
+                .set_attribute(node_id, Self::attr_name(name), value);
         }
         self.journal.borrow_mut().push(Mutation::Attribute {
             target: node_id,
@@ -648,7 +669,9 @@ impl Dom {
         let old_value = self.attribute(node_id, name);
         {
             let mut document = self.document.borrow_mut();
-            document.mutate().clear_attribute(node_id, Self::attr_name(name));
+            document
+                .mutate()
+                .clear_attribute(node_id, Self::attr_name(name));
         }
         self.journal.borrow_mut().push(Mutation::Attribute {
             target: node_id,
@@ -702,7 +725,10 @@ impl Dom {
 
     pub fn attributes(&self, node_id: usize) -> Vec<String> {
         let document = self.document.borrow();
-        let Some(element) = document.get_node(node_id).and_then(|node| node.element_data()) else {
+        let Some(element) = document
+            .get_node(node_id)
+            .and_then(|node| node.element_data())
+        else {
             return Vec::new();
         };
         element
@@ -942,7 +968,6 @@ impl Dom {
         let (width, height) = document.viewport().window_size;
         vec![f64::from(width), f64::from(height)]
     }
-
 
     pub fn body(&self) -> Option<usize> {
         self.query_selector("body")
