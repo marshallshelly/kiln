@@ -218,7 +218,38 @@ Nothing in the page says where these should go. Floating-ui measures the trigger
 
 Getting the last one honest took `clientLeft`/`clientTop`, which floating-ui adds to every offset — unimplemented, they made `number + undefined` and every popup landed at `translate(NaNpx, NaNpx)`.
 
-Still missing: `getBoundingClientRect` ignores transforms, so a positioned popup reports its untransformed box. `MutationObserver` and `IntersectionObserver` are inert stubs.
+Still missing: `getBoundingClientRect` ignores transforms, so a positioned popup reports its untransformed box. `IntersectionObserver` is an inert stub.
+
+## Tests read text, not pixels
+
+A PNG is a poor oracle for a DOM bug. It shows the final state and hides the sequence, it cannot say *why* a box landed where it did, and once real text layout arrives it will churn on font and antialiasing drift.
+
+So the primary artifact is a serialisation of the settled tree:
+
+```
+0/0/2/3 div.row @ 316,301 368x100.75 | display:block/flex position:static
+  0/0/2/3/1 button#dec.ghost @ 316,313 86x76 | display:block/flex position:static
+  0/0/2/3/3 div#count @ 426,301 150x100.75 | display:block/flow position:static
+    0/0/2/3/3/0 "1"
+```
+
+Goldens are driven through the same click path the CLI uses, so interaction state is part of the diff — that `"1"` is the counter after `+1 +1 -1`. The namespace marker prints only for elements *outside* the HTML namespace, which is why the bug where every element was created in the empty namespace — invisible in a screenshot, because attribute selectors still matched — would now be a one-line diff.
+
+```bash
+cargo test
+```
+
+## Mutations are a log, not a callback
+
+`MutationObserver` is not implemented as a standalone API. Every tree edit appends to an append-only journal, and the observer is one reader over it:
+
+| Reader | Status |
+| --- | --- |
+| `MutationObserver` | works — subtree scoping, `attributeFilter`, old values, `takeRecords`, `disconnect` |
+| Restyle invalidation | the same records are the dirty-set the cascade wants |
+| HMR, DevTools, record/replay | later readers of the same stream |
+
+Parent and siblings are captured *before* each edit, because after a removal there is no walking up from an orphaned handle. And `document.mutate()` is allowed in exactly one file — a test fails the build otherwise, since one missed append would break every reader at once, silently.
 
 The headless path is not a debugging convenience. It's the deterministic reference renderer — what makes golden-image tests, CI on a machine with no display, and automated verification possible. Both paths share one document and one paint call, so they cannot drift.
 

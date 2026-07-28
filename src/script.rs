@@ -1,5 +1,5 @@
 use anyhow::{Context as _, Result, anyhow};
-use rquickjs::{Context, Function, Object, Runtime};
+use rquickjs::{Array, Context, Ctx, Function, Object, Runtime};
 
 use crate::dom::Dom;
 
@@ -485,11 +485,107 @@ globalThis.__runObservers = () => {
   return delivered;
 };
 
+let __mutationSeq = 0;
+let __mutationCursor = 0;
+const __mutationObservers = new Map();
+
+const __isAncestorOf = (ancestor, node) => {
+  let current = __kiln.parent(node);
+  while (current !== null && current !== undefined) {
+    if (current === ancestor) return true;
+    current = __kiln.parent(current);
+  }
+  return false;
+};
+
+const __scoped = (spec, target) =>
+  spec.id === target || (spec.subtree && __isAncestorOf(spec.id, target));
+
+const __wants = (spec, record) => {
+  if (record.type === "childList") return spec.childList && __scoped(spec, record.target);
+  if (record.type === "characterData") return spec.characterData && __scoped(spec, record.target);
+  if (!spec.attributes) return false;
+  if (spec.attributeFilter && !spec.attributeFilter.includes(record.attributeName)) return false;
+  return __scoped(spec, record.target);
+};
+
+const __mutationRecord = (spec, record) => {
+  const keepOld = record.type === "attributes"
+    ? spec.attributeOldValue
+    : record.type === "characterData" && spec.characterDataOldValue;
+  return {
+    type: record.type,
+    target: __wrap(record.target),
+    addedNodes: (record.addedNodes || []).map(__wrap),
+    removedNodes: (record.removedNodes || []).map(__wrap),
+    previousSibling: record.previousSibling == null ? null : __wrap(record.previousSibling),
+    nextSibling: record.nextSibling == null ? null : __wrap(record.nextSibling),
+    attributeName: record.attributeName == null ? null : record.attributeName,
+    attributeNamespace: null,
+    oldValue: keepOld && record.oldValue != null ? record.oldValue : null,
+  };
+};
+
+class MutationObserver {
+  constructor(callback) {
+    this.__id = ++__mutationSeq;
+    this.__queue = [];
+    __mutationObservers.set(this.__id, { callback, observer: this, specs: [] });
+  }
+  observe(target, options) {
+    const entry = __mutationObservers.get(this.__id);
+    if (!entry || !target) return;
+    const o = options || {};
+    entry.specs.push({
+      id: target.__id,
+      childList: !!o.childList,
+      attributes: o.attributes === undefined
+        ? !!(o.attributeFilter || o.attributeOldValue)
+        : !!o.attributes,
+      characterData: o.characterData === undefined
+        ? !!o.characterDataOldValue
+        : !!o.characterData,
+      subtree: !!o.subtree,
+      attributeOldValue: !!o.attributeOldValue,
+      characterDataOldValue: !!o.characterDataOldValue,
+      attributeFilter: o.attributeFilter || null,
+    });
+  }
+  disconnect() {
+    const entry = __mutationObservers.get(this.__id);
+    if (entry) entry.specs = [];
+    this.__queue = [];
+  }
+  takeRecords() { const queued = this.__queue; this.__queue = []; return queued; }
+}
+globalThis.MutationObserver = MutationObserver;
+
+globalThis.__deliverMutations = () => {
+  const taken = __kiln.takeMutations(__mutationCursor);
+  __mutationCursor = taken.cursor;
+  __kiln.retainMutationsFrom(__mutationCursor);
+
+  for (const entry of __mutationObservers.values()) {
+    for (const record of taken.records) {
+      const spec = entry.specs.find((candidate) => __wants(candidate, record));
+      if (spec) entry.observer.__queue.push(__mutationRecord(spec, record));
+    }
+  }
+
+  let delivered = 0;
+  for (const entry of [...__mutationObservers.values()]) {
+    if (!entry.observer.__queue.length) continue;
+    const queued = entry.observer.takeRecords();
+    delivered += queued.length;
+    entry.callback(queued, entry.observer);
+  }
+  return delivered;
+};
+
 class __InertObserver {
   constructor(callback) { this.__callback = callback; }
   observe() {} unobserve() {} disconnect() {} takeRecords() { return []; }
 }
-globalThis.MutationObserver = __InertObserver;
 globalThis.IntersectionObserver = __InertObserver;
 
 globalThis.__dispatch = (path, type, detail) => {
@@ -527,6 +623,71 @@ globalThis.__dispatch = (path, type, detail) => {
 pub struct Script {
     runtime: Runtime,
     context: Context,
+}
+
+fn take_mutations<'js>(ctx: Ctx<'js>, dom: &Dom, cursor: u64) -> rquickjs::Result<Object<'js>> {
+    use crate::dom::Mutation;
+
+    let journal = dom.journal().borrow();
+    let records = Array::new(ctx.clone())?;
+
+    for (index, record) in journal.since(cursor).enumerate() {
+        let entry = Object::new(ctx.clone())?;
+        match &record.mutation {
+            Mutation::ChildList {
+                parent,
+                added,
+                removed,
+                previous_sibling,
+                next_sibling,
+            } => {
+                entry.set("type", "childList")?;
+                entry.set("target", *parent)?;
+                entry.set("addedNodes", added.clone())?;
+                entry.set("removedNodes", removed.clone())?;
+                entry.set("previousSibling", *previous_sibling)?;
+                entry.set("nextSibling", *next_sibling)?;
+            }
+            Mutation::Attribute {
+                target,
+                name,
+                old_value,
+            } => {
+                entry.set("type", "attributes")?;
+                entry.set("target", *target)?;
+                entry.set("attributeName", name.clone())?;
+                entry.set("oldValue", old_value.clone())?;
+            }
+            Mutation::CharacterData { target, old_value } => {
+                entry.set("type", "characterData")?;
+                entry.set("target", *target)?;
+                entry.set("oldValue", old_value.clone())?;
+            }
+        }
+        records.set(index, entry)?;
+    }
+
+    let result = Object::new(ctx)?;
+    result.set("cursor", journal.next_seq())?;
+    result.set("records", records)?;
+    Ok(result)
+}
+
+fn bind_journal<'js>(ctx: &Ctx<'js>, kiln: &Object<'js>, dom: Dom) -> rquickjs::Result<()> {
+    let take = dom.clone();
+    kiln.set(
+        "takeMutations",
+        Function::new(ctx.clone(), move |ctx: Ctx<'js>, cursor: u64| {
+            take_mutations(ctx, &take, cursor)
+        })?,
+    )?;
+    kiln.set(
+        "retainMutationsFrom",
+        Function::new(ctx.clone(), move |seq: u64| {
+            dom.journal().borrow_mut().retain_from(seq);
+        })?,
+    )?;
+    Ok(())
 }
 
 impl Script {
@@ -602,6 +763,8 @@ impl Script {
                 bind!("viewportSize", d, move || d.viewport_size());
                 bind!("computedStyle", d, move |id: usize| d.computed_style(id));
 
+                bind_journal(&ctx, &kiln, dom.clone())?;
+
                 kiln.set(
                     "log",
                     Function::new(ctx.clone(), |message: String| println!("{message}"))?,
@@ -654,10 +817,20 @@ impl Script {
         delivered
     }
 
+    fn deliver_mutations(&self) -> usize {
+        self.context
+            .with(|ctx| -> rquickjs::Result<usize> {
+                let deliver: Function = ctx.globals().get("__deliverMutations")?;
+                deliver.call(())
+            })
+            .unwrap_or(0)
+    }
+
     pub fn drain(&self) {
         for _ in 0..64 {
+            let delivered = self.deliver_mutations();
             self.drain_microtasks();
-            if self.run_timers() == 0 {
+            if self.run_timers() == 0 && delivered == 0 {
                 break;
             }
         }

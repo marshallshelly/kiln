@@ -161,9 +161,62 @@ fn write_snapshot_node(
     }
 }
 
+pub enum Mutation {
+    ChildList {
+        parent: usize,
+        added: Vec<usize>,
+        removed: Vec<usize>,
+        previous_sibling: Option<usize>,
+        next_sibling: Option<usize>,
+    },
+    Attribute {
+        target: usize,
+        name: String,
+        old_value: Option<String>,
+    },
+    CharacterData {
+        target: usize,
+        old_value: String,
+    },
+}
+
+pub struct Record {
+    pub seq: u64,
+    pub mutation: Mutation,
+}
+
+#[derive(Default)]
+pub struct Journal {
+    records: std::collections::VecDeque<Record>,
+    next: u64,
+}
+
+impl Journal {
+    fn push(&mut self, mutation: Mutation) {
+        let seq = self.next;
+        self.next += 1;
+        self.records.push_back(Record { seq, mutation });
+    }
+
+    pub fn next_seq(&self) -> u64 {
+        self.next
+    }
+
+    pub fn since(&self, cursor: u64) -> impl Iterator<Item = &Record> {
+        self.records.iter().filter(move |record| record.seq >= cursor)
+    }
+
+    pub fn retain_from(&mut self, seq: u64) {
+        while self.records.front().is_some_and(|record| record.seq < seq) {
+            self.records.pop_front();
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Dom {
     document: Rc<RefCell<HtmlDocument>>,
+    journal: Rc<RefCell<Journal>>,
 }
 
 impl Dom {
@@ -177,7 +230,45 @@ impl Dom {
         );
         Self {
             document: Rc::new(RefCell::new(document)),
+            journal: Rc::new(RefCell::new(Journal::default())),
         }
+    }
+
+    pub fn journal(&self) -> &Rc<RefCell<Journal>> {
+        &self.journal
+    }
+
+    fn siblings_of(&self, node_id: usize) -> (Option<usize>, Option<usize>) {
+        let document = self.document.borrow();
+        let Some(parent) = document.get_node(node_id).and_then(|node| node.parent) else {
+            return (None, None);
+        };
+        let Some(parent) = document.get_node(parent) else {
+            return (None, None);
+        };
+        let Some(index) = parent.children.iter().position(|id| *id == node_id) else {
+            return (None, None);
+        };
+        (
+            index
+                .checked_sub(1)
+                .and_then(|previous| parent.children.get(previous).copied()),
+            parent.children.get(index + 1).copied(),
+        )
+    }
+
+    fn record_detach(&self, node_id: usize) {
+        let Some(parent) = self.parent(node_id) else {
+            return;
+        };
+        let (previous_sibling, next_sibling) = self.siblings_of(node_id);
+        self.journal.borrow_mut().push(Mutation::ChildList {
+            parent,
+            added: Vec::new(),
+            removed: vec![node_id],
+            previous_sibling,
+            next_sibling,
+        });
     }
 
     pub fn set_viewport(&self, width: u32, height: u32, scale: f32) {
@@ -276,14 +367,38 @@ impl Dom {
             }
         };
 
-        let mut document = self.document.borrow_mut();
-        let mut mutator = document.mutate();
-        match target {
-            Some(text_node) => mutator.set_node_text(text_node, value),
-            None => {
-                let text_node = mutator.create_text_node(value);
-                mutator.append_children(node_id, &[text_node]);
+        let old_value = target.map(|text_node| self.text_content(text_node));
+
+        let created = {
+            let mut document = self.document.borrow_mut();
+            let mut mutator = document.mutate();
+            match target {
+                Some(text_node) => {
+                    mutator.set_node_text(text_node, value);
+                    None
+                }
+                None => {
+                    let text_node = mutator.create_text_node(value);
+                    mutator.append_children(node_id, &[text_node]);
+                    Some(text_node)
+                }
             }
+        };
+
+        let mut journal = self.journal.borrow_mut();
+        match (target, created) {
+            (Some(text_node), _) => journal.push(Mutation::CharacterData {
+                target: text_node,
+                old_value: old_value.unwrap_or_default(),
+            }),
+            (None, Some(text_node)) => journal.push(Mutation::ChildList {
+                parent: node_id,
+                added: vec![text_node],
+                removed: Vec::new(),
+                previous_sibling: None,
+                next_sibling: None,
+            }),
+            (None, None) => {}
         }
     }
 
@@ -306,28 +421,74 @@ impl Dom {
     }
 
     pub fn append_child(&self, parent: usize, child: usize) {
-        let mut document = self.document.borrow_mut();
-        document.mutate().append_children(parent, &[child]);
+        self.record_detach(child);
+        let previous_sibling = self.children(parent).last().copied();
+
+        {
+            let mut document = self.document.borrow_mut();
+            document.mutate().append_children(parent, &[child]);
+        }
+
+        self.journal.borrow_mut().push(Mutation::ChildList {
+            parent,
+            added: vec![child],
+            removed: Vec::new(),
+            previous_sibling,
+            next_sibling: None,
+        });
     }
 
     pub fn insert_before(&self, child: usize, reference: usize) {
-        let mut document = self.document.borrow_mut();
-        document.mutate().insert_nodes_before(reference, &[child]);
+        self.record_detach(child);
+        let parent = self.parent(reference);
+        let (previous_sibling, _) = self.siblings_of(reference);
+
+        {
+            let mut document = self.document.borrow_mut();
+            document.mutate().insert_nodes_before(reference, &[child]);
+        }
+
+        if let Some(parent) = parent {
+            self.journal.borrow_mut().push(Mutation::ChildList {
+                parent,
+                added: vec![child],
+                removed: Vec::new(),
+                previous_sibling,
+                next_sibling: Some(reference),
+            });
+        }
     }
 
     pub fn remove_child(&self, child: usize) {
+        self.record_detach(child);
         let mut document = self.document.borrow_mut();
         document.mutate().remove_node(child);
     }
 
     pub fn set_attribute(&self, node_id: usize, name: &str, value: &str) {
-        let mut document = self.document.borrow_mut();
-        document.mutate().set_attribute(node_id, Self::attr_name(name), value);
+        let old_value = self.attribute(node_id, name);
+        {
+            let mut document = self.document.borrow_mut();
+            document.mutate().set_attribute(node_id, Self::attr_name(name), value);
+        }
+        self.journal.borrow_mut().push(Mutation::Attribute {
+            target: node_id,
+            name: name.to_ascii_lowercase(),
+            old_value,
+        });
     }
 
     pub fn remove_attribute(&self, node_id: usize, name: &str) {
-        let mut document = self.document.borrow_mut();
-        document.mutate().clear_attribute(node_id, Self::attr_name(name));
+        let old_value = self.attribute(node_id, name);
+        {
+            let mut document = self.document.borrow_mut();
+            document.mutate().clear_attribute(node_id, Self::attr_name(name));
+        }
+        self.journal.borrow_mut().push(Mutation::Attribute {
+            target: node_id,
+            name: name.to_ascii_lowercase(),
+            old_value,
+        });
     }
 
     pub fn attribute(&self, node_id: usize, name: &str) -> Option<String> {
@@ -341,12 +502,20 @@ impl Dom {
     }
 
     pub fn set_style_property(&self, node_id: usize, name: &str, value: &str) {
-        let mut document = self.document.borrow_mut();
-        if value.is_empty() {
-            document.mutate().remove_style_property(node_id, name);
-        } else {
-            document.mutate().set_style_property(node_id, name, value);
+        let old_value = self.attribute(node_id, "style");
+        {
+            let mut document = self.document.borrow_mut();
+            if value.is_empty() {
+                document.mutate().remove_style_property(node_id, name);
+            } else {
+                document.mutate().set_style_property(node_id, name, value);
+            }
         }
+        self.journal.borrow_mut().push(Mutation::Attribute {
+            target: node_id,
+            name: "style".into(),
+            old_value,
+        });
     }
 
     pub fn parent(&self, node_id: usize) -> Option<usize> {
@@ -596,5 +765,132 @@ impl Dom {
             .context("write png data")?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn describe(record: &Record) -> String {
+        match &record.mutation {
+            Mutation::ChildList {
+                parent,
+                added,
+                removed,
+                previous_sibling,
+                next_sibling,
+            } => format!(
+                "childList parent={parent} added={added:?} removed={removed:?} prev={previous_sibling:?} next={next_sibling:?}"
+            ),
+            Mutation::Attribute {
+                target,
+                name,
+                old_value,
+            } => format!("attributes target={target} name={name} old={old_value:?}"),
+            Mutation::CharacterData { target, old_value } => {
+                format!("characterData target={target} old={old_value:?}")
+            }
+        }
+    }
+
+    #[test]
+    fn journal_records_edits_in_order() {
+        let dom = Dom::from_html(
+            "<html><body><div id=host><span>a</span></div></body></html>",
+            100,
+            100,
+            1.0,
+        );
+        let host = dom.query_selector("#host").unwrap();
+        let span = dom.query_selector("span").unwrap();
+
+        dom.set_attribute(host, "data-x", "1");
+        dom.set_attribute(host, "data-x", "2");
+        let paragraph = dom.create_element("p");
+        dom.append_child(host, paragraph);
+        dom.set_text_content(span, "b");
+        dom.remove_child(paragraph);
+
+        let journal = dom.journal().borrow();
+        let actual: Vec<String> = journal.since(0).map(describe).collect();
+
+        assert_eq!(
+            actual,
+            vec![
+                format!("attributes target={host} name=data-x old=None"),
+                format!("attributes target={host} name=data-x old=Some(\"1\")"),
+                format!(
+                    "childList parent={host} added=[{paragraph}] removed=[] prev=Some({span}) next=None"
+                ),
+                format!("characterData target={} old=\"a\"", dom.children(span)[0]),
+                format!(
+                    "childList parent={host} added=[] removed=[{paragraph}] prev=Some({span}) next=None"
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn creating_a_node_records_nothing_until_it_is_attached() {
+        let dom = Dom::from_html("<html><body></body></html>", 100, 100, 1.0);
+        dom.create_element("div");
+        dom.create_text_node("hello");
+        assert_eq!(dom.journal().borrow().since(0).count(), 0);
+    }
+
+    #[test]
+    fn moving_a_node_records_the_detach_first() {
+        let dom = Dom::from_html(
+            "<html><body><div id=from><i></i></div><div id=to></div></body></html>",
+            100,
+            100,
+            1.0,
+        );
+        let from = dom.query_selector("#from").unwrap();
+        let to = dom.query_selector("#to").unwrap();
+        let moved = dom.query_selector("i").unwrap();
+
+        dom.append_child(to, moved);
+
+        let journal = dom.journal().borrow();
+        let actual: Vec<String> = journal.since(0).map(describe).collect();
+        assert_eq!(
+            actual,
+            vec![
+                format!("childList parent={from} added=[] removed=[{moved}] prev=None next=None"),
+                format!("childList parent={to} added=[{moved}] removed=[] prev=None next=None"),
+            ]
+        );
+    }
+
+    #[test]
+    fn retain_from_drops_consumed_records() {
+        let dom = Dom::from_html("<html><body><p></p></body></html>", 100, 100, 1.0);
+        let node = dom.query_selector("p").unwrap();
+        dom.set_attribute(node, "a", "1");
+        dom.set_attribute(node, "b", "2");
+
+        let cursor = dom.journal().borrow().next_seq();
+        dom.journal().borrow_mut().retain_from(cursor);
+
+        assert_eq!(dom.journal().borrow().since(0).count(), 0);
+        assert_eq!(dom.journal().borrow().next_seq(), cursor);
+    }
+
+    #[test]
+    fn the_document_is_only_mutated_through_this_module() {
+        for entry in std::fs::read_dir("src").unwrap() {
+            let path = entry.unwrap().path();
+            if path.file_name().is_some_and(|name| name == "dom.rs") {
+                continue;
+            }
+            let source = std::fs::read_to_string(&path).unwrap();
+            assert!(
+                !source.contains(".mutate()"),
+                "{} mutates the document outside dom.rs, so the journal would miss it",
+                path.display()
+            );
+        }
     }
 }
