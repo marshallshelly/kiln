@@ -214,6 +214,54 @@ impl Dom {
             .is_some_and(|node| matches!(node.data, NodeData::Text(_)))
     }
 
+    pub fn query_selector_all(&self, root: Option<usize>, selector: &str) -> Vec<usize> {
+        let document = self.document.borrow();
+        let Ok(all) = document.query_selector_all(selector) else {
+            return Vec::new();
+        };
+        let Some(root) = root else {
+            return all.into_iter().collect();
+        };
+        all.into_iter()
+            .filter(|id| {
+                let mut current = document.get_node(*id).and_then(|n| n.parent);
+                while let Some(p) = current {
+                    if p == root {
+                        return true;
+                    }
+                    current = document.get_node(p).and_then(|n| n.parent);
+                }
+                false
+            })
+            .collect()
+    }
+
+    pub fn matches(&self, node_id: usize, selector: &str) -> bool {
+        self.query_selector_all(None, selector).contains(&node_id)
+    }
+
+    pub fn focus(&self, node_id: Option<usize>) {
+        let mut document = self.document.borrow_mut();
+        match node_id {
+            Some(id) => {
+                document.set_focus_to(id);
+            }
+            None => document.clear_focus(),
+        }
+    }
+
+    pub fn active_element(&self) -> Option<usize> {
+        self.document.borrow().get_focussed_node_id()
+    }
+
+    pub fn rect(&self, node_id: usize) -> Option<Vec<f32>> {
+        let document = self.document.borrow();
+        let node = document.get_node(node_id)?;
+        let size = node.final_layout.size;
+        let position = node.absolute_position(0.0, 0.0);
+        Some(vec![position.x, position.y, size.width, size.height])
+    }
+
     pub fn body(&self) -> Option<usize> {
         self.query_selector("body")
     }
