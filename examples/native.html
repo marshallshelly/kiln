@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Kiln — native</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #0b1226;
+        color: #f4e7d3;
+        font-family: Helvetica, Arial, sans-serif;
+      }
+      h1 {
+        margin: 0 0 16px;
+        font-size: 13px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #8fa0c4;
+      }
+      p { margin: 0 0 14px; font-size: 14px; color: #6c7a9c; max-width: 460px; line-height: 1.6; }
+      output {
+        display: block;
+        margin-top: 8px;
+        font-family: Menlo, monospace;
+        font-size: 12px;
+        color: #f5a93c;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Native surfaces</h1>
+    <p>
+      The menu bar is a real OS menu built from a plain object. The clipboard is
+      the real system clipboard. Neither is drawn by Kiln.
+    </p>
+    <output id="clip">clipboard: (unread)</output>
+    <output id="picked">menu: (nothing chosen)</output>
+
+    <script>
+      const picked = document.querySelector("#picked");
+
+      kiln.menu.set([
+        {
+          label: "File",
+          items: [
+            { id: "new", label: "New Window", accelerator: "CmdOrCtrl+N",
+              click: (id) => { picked.textContent = "menu: " + id; } },
+            { id: "open", label: "Open…", accelerator: "CmdOrCtrl+O",
+              click: (id) => { picked.textContent = "menu: " + id; } },
+            "-",
+            { id: "close", label: "Close", accelerator: "CmdOrCtrl+W", enabled: false },
+          ],
+        },
+        {
+          label: "Edit",
+          items: [
+            { id: "copy", label: "Copy", accelerator: "CmdOrCtrl+C" },
+            { id: "paste", label: "Paste", accelerator: "CmdOrCtrl+V" },
+          ],
+        },
+      ]);
+
+      kiln.tray.set({
+        tooltip: "Kiln",
+        items: [
+          { id: "show", label: "Show Window",
+            click: (id) => { picked.textContent = "tray: " + id; } },
+          "-",
+          { id: "quit", label: "Quit" },
+        ],
+      });
+
+      kiln.clipboard.writeText("written by kiln");
+      document.querySelector("#clip").textContent =
+        "clipboard: " + JSON.stringify(kiln.clipboard.readText());
+    </script>
+  </body>
+</html>

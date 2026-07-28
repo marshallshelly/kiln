@@ -1,7 +1,10 @@
+use std::rc::Rc;
+
 use anyhow::{Context as _, Result, anyhow};
 use rquickjs::{Array, Context, Ctx, Function, Object, Runtime};
 
 use crate::dom::Dom;
+use crate::native::Native;
 
 const PRELUDE: &str = r##"
 globalThis.console = {
@@ -720,6 +723,71 @@ globalThis.__deliverMutations = () => {
 };
 
 
+const __flattenMenu = (items, depth, out) => {
+  for (const item of items || []) {
+    const separator = item === "-" || item.type === "separator";
+    const label = separator ? "-" : String(item.label == null ? "" : item.label);
+    out.push(
+      String(depth),
+      String(item.id == null ? "" : item.id),
+      label,
+      String(item.accelerator == null ? "" : item.accelerator),
+      item.enabled === false ? "0" : "1",
+    );
+    if (item.items) __flattenMenu(item.items, depth + 1, out);
+  }
+  return out;
+};
+
+const __menuHandlers = new Map();
+globalThis.__menuActivated = (id) => {
+  const handler = __menuHandlers.get(id);
+  if (handler) handler(id);
+};
+
+globalThis.kiln = {
+  menu: {
+    set(items) {
+      __menuHandlers.clear();
+      const collect = (list) => {
+        for (const item of list || []) {
+          if (item && item.id && typeof item.click === "function") {
+            __menuHandlers.set(String(item.id), item.click);
+          }
+          if (item && item.items) collect(item.items);
+        }
+      };
+      collect(items);
+      __kiln.setMenu(__flattenMenu(items, 0, []));
+    },
+  },
+  tray: {
+    set(options) {
+      const items = (options && options.items) || [];
+      const collect = (list) => {
+        for (const item of list || []) {
+          if (item && item.id && typeof item.click === "function") {
+            __menuHandlers.set(String(item.id), item.click);
+          }
+          if (item && item.items) collect(item.items);
+        }
+      };
+      collect(items);
+      __kiln.setTray(String((options && options.tooltip) || ""), __flattenMenu(items, 0, []));
+    },
+  },
+  clipboard: {
+    readText() { return __kiln.clipboardRead(); },
+    writeText(value) { return __kiln.clipboardWrite(value == null ? "" : String(value)); },
+  },
+  dialog: {
+    open(options) { return __kiln.openFile(!!(options && options.multiple)); },
+    save(options) { return __kiln.saveFile(String((options && options.defaultName) || "")); },
+    message(title, body) { __kiln.messageBox(String(title || ""), String(body || "")); },
+  },
+  notify(title, body) { return __kiln.notify(String(title || ""), String(body || "")); },
+};
+
 globalThis.__dispatch = (path, type, detail) => {
   let fired = false;
   let stopped = false;
@@ -823,7 +891,7 @@ fn bind_journal<'js>(ctx: &Ctx<'js>, kiln: &Object<'js>, dom: Dom) -> rquickjs::
 }
 
 impl Script {
-    pub fn new(dom: Dom) -> Result<Self> {
+    pub fn new(dom: Dom, native: Rc<Native>) -> Result<Self> {
         let runtime = Runtime::new().map_err(|e| anyhow!("create js runtime: {e}"))?;
         let context = Context::full(&runtime).map_err(|e| anyhow!("create js context: {e}"))?;
 
@@ -891,6 +959,68 @@ impl Script {
                 bind!("focus", d, move |id: Option<usize>| d.focus(id));
                 bind!("activeElement", d, move || d.active_element());
                 bind!("getValue", d, move |id: usize| d.value(id));
+
+                let menu_native = Rc::clone(&native);
+                kiln.set(
+                    "setMenu",
+                    Function::new(ctx.clone(), move |flat: Vec<String>| {
+                        menu_native.set_menu(&flat);
+                    })?,
+                )?;
+
+                let tray_native = Rc::clone(&native);
+                kiln.set(
+                    "setTray",
+                    Function::new(ctx.clone(), move |tooltip: String, flat: Vec<String>| {
+                        tray_native.set_tray(&tooltip, &flat);
+                    })?,
+                )?;
+
+                let clip_read = Rc::clone(&native);
+                kiln.set(
+                    "clipboardRead",
+                    Function::new(ctx.clone(), move || clip_read.read_text())?,
+                )?;
+
+                let clip_write = Rc::clone(&native);
+                kiln.set(
+                    "clipboardWrite",
+                    Function::new(ctx.clone(), move |value: String| {
+                        clip_write.write_text(&value).is_ok()
+                    })?,
+                )?;
+
+                let notify_native = Rc::clone(&native);
+                kiln.set(
+                    "notify",
+                    Function::new(ctx.clone(), move |title: String, body: String| {
+                        notify_native.notify(&title, &body).is_ok()
+                    })?,
+                )?;
+
+                let open_native = Rc::clone(&native);
+                kiln.set(
+                    "openFile",
+                    Function::new(ctx.clone(), move |multiple: bool| {
+                        open_native.open_file(multiple)
+                    })?,
+                )?;
+
+                let save_native = Rc::clone(&native);
+                kiln.set(
+                    "saveFile",
+                    Function::new(ctx.clone(), move |suggested: String| {
+                        save_native.save_file(&suggested)
+                    })?,
+                )?;
+
+                let message_native = Rc::clone(&native);
+                kiln.set(
+                    "messageBox",
+                    Function::new(ctx.clone(), move |title: String, body: String| {
+                        message_native.message(&title, &body);
+                    })?,
+                )?;
                 bind!("setValue", d, move |id: usize, v: String| d.set_value(id, &v));
                 bind!("rect", d, move |id: usize| d.client_rect(id));
                 bind!("boxMetrics", d, move |id: usize| d.box_metrics(id));
@@ -958,6 +1088,17 @@ impl Script {
                 deliver.call(())
             })
             .unwrap_or(0)
+    }
+
+    pub fn dispatch_menu(&self, id: &str) -> Result<()> {
+        self.context
+            .with(|ctx| -> rquickjs::Result<()> {
+                let run: Function = ctx.globals().get("__menuActivated")?;
+                run.call((id.to_string(),))
+            })
+            .map_err(|e| anyhow!("dispatch menu {id}: {e}"))?;
+        self.drain();
+        Ok(())
     }
 
     pub fn drain(&self) {

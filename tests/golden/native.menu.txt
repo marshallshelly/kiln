@@ -1,0 +1,13 @@
+"File"
+  "New Window" #new [CmdOrCtrl+N]
+  "Open…" #open [CmdOrCtrl+O]
+  ---
+  "Close" #close [CmdOrCtrl+W] disabled
+"Edit"
+  "Copy" #copy [CmdOrCtrl+C]
+  "Paste" #paste [CmdOrCtrl+V]
+
+tooltip "Kiln"
+"Show Window" #show
+---
+"Quit" #quit

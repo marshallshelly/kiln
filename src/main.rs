@@ -1,5 +1,6 @@
 mod dom;
 mod events;
+mod native;
 mod script;
 
 use std::sync::Arc;
@@ -20,6 +21,7 @@ const DEFAULT_WIDTH: u32 = 1000;
 const DEFAULT_HEIGHT: u32 = 700;
 
 struct App {
+    native: std::rc::Rc<native::Native>,
     window: Option<Arc<Window>>,
     renderer: VelloWindowRenderer,
     dom: Dom,
@@ -32,8 +34,9 @@ struct App {
 }
 
 impl App {
-    fn new(dom: Dom, script: Script) -> Self {
+    fn new(dom: Dom, script: Script, native: std::rc::Rc<native::Native>) -> Self {
         Self {
+            native,
             window: None,
             renderer: VelloWindowRenderer::new(),
             dom,
@@ -70,6 +73,9 @@ impl App {
             bail!("renderer failed to initialize");
         }
 
+        if let Err(error) = self.native.realise() {
+            eprintln!("{error:?}");
+        }
         window.set_ime_allowed(true);
         self.dom.set_viewport(size.width, size.height, self.scale);
         window.request_redraw();
@@ -87,6 +93,14 @@ impl App {
         }
         if redraw && let Some(window) = self.window.as_ref() {
             window.request_redraw();
+        }
+    }
+
+    fn pump_menu(&mut self) {
+        for id in self.native.drain_menu_events() {
+            if let Err(error) = self.script.dispatch_menu(&id) {
+                eprintln!("{error:?}");
+            }
         }
     }
 
@@ -172,19 +186,24 @@ impl ApplicationHandler for App {
             }
             WindowEvent::Ime(event) => self.drive(events::ime(event)),
             WindowEvent::KeyboardInput { event, .. } => self.drive(events::key(&event)),
-            WindowEvent::RedrawRequested => self.redraw(),
+            WindowEvent::RedrawRequested => {
+                self.pump_menu();
+                self.redraw();
+            }
             _ => {}
         }
     }
 }
 
-fn load(input: &str) -> Result<(Dom, Script)> {
+fn load(input: &str) -> Result<(Dom, Script, std::rc::Rc<native::Native>)> {
     let path = std::path::Path::new(input);
     let html = std::fs::read_to_string(path).with_context(|| format!("read {input}"))?;
     let base = path.parent().unwrap_or_else(|| std::path::Path::new("."));
     let dom = Dom::from_html(&html, DEFAULT_WIDTH, DEFAULT_HEIGHT, 1.0);
 
-    let script = Script::new(dom.clone()).context("start script runtime")?;
+    let native = std::rc::Rc::new(native::Native::default());
+    let script =
+        Script::new(dom.clone(), std::rc::Rc::clone(&native)).context("start script runtime")?;
 
     dom.resolve();
 
@@ -200,16 +219,16 @@ fn load(input: &str) -> Result<(Dom, Script)> {
         }
     }
 
-    Ok((dom, script))
+    Ok((dom, script, native))
 }
 
 fn open(input: &str) -> Result<()> {
-    let (dom, script) = load(input)?;
+    let (dom, script, native) = load(input)?;
 
     let event_loop = EventLoop::new().context("create event loop")?;
     event_loop.set_control_flow(ControlFlow::Wait);
 
-    let mut app = App::new(dom, script);
+    let mut app = App::new(dom, script, native);
     event_loop.run_app(&mut app).context("run event loop")?;
 
     match app.failure {
@@ -229,6 +248,7 @@ struct Run {
     snapshot: Option<String>,
     at: Option<String>,
     a11y: Option<String>,
+    menu: Option<String>,
 }
 
 fn render(input: &str, output: &str, run: &Run) -> Result<()> {
@@ -242,8 +262,9 @@ fn render(input: &str, output: &str, run: &Run) -> Result<()> {
         snapshot,
         at,
         a11y,
+        menu,
     } = run;
-    let (dom, script) = load(input)?;
+    let (dom, script, native) = load(input)?;
 
     let mut targets: Vec<(f32, f32)> = Vec::new();
 
@@ -347,6 +368,12 @@ fn render(input: &str, output: &str, run: &Run) -> Result<()> {
         dom.settle(&script);
     }
 
+    if let Some(path) = menu {
+        let model = format!("{}\n{}", native.menu_snapshot(), native.tray_snapshot());
+        std::fs::write(path, model).with_context(|| format!("write {path}"))?;
+        println!("{input} -> {path}");
+    }
+
     if let Some(path) = a11y {
         std::fs::write(path, dom.accessibility_snapshot())
             .with_context(|| format!("write {path}"))?;
@@ -370,7 +397,7 @@ fn usage() -> ! {
     eprintln!("        [--click <selector>] [--click-at <x,y>] [--hover <selector>]");
     eprintln!("        [--snapshot <out.txt>] [--at <seconds>]");
     eprintln!("        [--scroll <selector,dx,dy>] [--type <text>] [--press <key>]");
-    eprintln!("        [--a11y <out.txt>]");
+    eprintln!("        [--a11y <out.txt>] [--menu <out.txt>]");
     eprintln!("                                     render headless to a PNG");
     std::process::exit(2)
 }
@@ -404,6 +431,7 @@ fn main() -> Result<()> {
                 snapshot: flag("--snapshot").into_iter().next(),
                 at: flag("--at").into_iter().next(),
                 a11y: flag("--a11y").into_iter().next(),
+                menu: flag("--menu").into_iter().next(),
             };
             match positional.first() {
                 Some(input) => render(
@@ -428,7 +456,7 @@ mod snapshot_tests {
     }
 
     fn golden_at(name: &str, clicks: &[&str], at: Option<f64>) {
-        let (dom, script) = load(&format!("examples/{name}.html")).unwrap();
+        let (dom, script, _native) = load(&format!("examples/{name}.html")).unwrap();
         dom.settle(&script);
 
         for selector in clicks {
@@ -509,8 +537,39 @@ mod snapshot_tests {
     }
 
     #[test]
+    fn native_menu_model() {
+        let (dom, script, native) = load("examples/native.html").unwrap();
+        dom.settle(&script);
+
+        let actual = format!("{}\n{}", native.menu_snapshot(), native.tray_snapshot());
+        let path = "tests/golden/native.menu.txt";
+        if std::env::var_os("KILN_BLESS").is_some() {
+            std::fs::write(path, &actual).unwrap();
+            return;
+        }
+        let expected = std::fs::read_to_string(path)
+            .unwrap_or_else(|_| panic!("missing {path}; run with KILN_BLESS=1"));
+        assert_eq!(expected, actual, "menu model changed");
+    }
+
+    #[test]
+    fn clipboard_round_trips() {
+        let native = native::Native::default();
+
+        // A headless box may have no clipboard at all; that is not a failure.
+        if native.write_text("kiln clipboard probe").is_err() {
+            return;
+        }
+        assert_eq!(
+            native.read_text().as_deref(),
+            Some("kiln clipboard probe"),
+            "clipboard did not return what was written"
+        );
+    }
+
+    #[test]
     fn semantics_accessibility() {
-        let (dom, script) = load("examples/semantics.html").unwrap();
+        let (dom, script, _native) = load("examples/semantics.html").unwrap();
         dom.settle(&script);
 
         let actual = dom.accessibility_snapshot();
@@ -526,7 +585,7 @@ mod snapshot_tests {
 
     #[test]
     fn input() {
-        let (dom, script) = load("examples/input.html").unwrap();
+        let (dom, script, _native) = load("examples/input.html").unwrap();
         dom.settle(&script);
 
         for ch in "Marshall".chars() {

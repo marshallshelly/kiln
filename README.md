@@ -10,14 +10,14 @@
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/marshallshelly/kiln?style=flat-square&color=0B1226&label=stars" alt="Stars">
-  <img src="https://img.shields.io/badge/status-M0--M5%20%2B%20Preact--F5A93C?style=flat-square" alt="Status: M0 to M5 plus Preact">
+  <img src="https://img.shields.io/badge/status-M0--M6%20%2B%20Preact--F5A93C?style=flat-square" alt="Status: M0 to M6 plus Preact">
   <img src="https://img.shields.io/badge/built%20with-Rust-0B1226?style=flat-square" alt="Built with Rust">
   <img src="https://img.shields.io/badge/license-Apache--2.0-0B1226?style=flat-square" alt="Apache-2.0 license">
 </p>
 
 <p align="center">
   <strong>Native desktop apps from real HTML, CSS, and TypeScript &middot; rendered by our own engine &middot; no Chromium, no WebView</strong><br>
-  <sub><strong>This is early.</strong> HTML and CSS render, and JavaScript can drive the DOM — a counter app works. The CSS surface is partial and much of the toolkit (native menus, packaging, DevTools) is not built. Read <a href="#status">Status</a> before you get excited.</sub>
+  <sub><strong>This is early.</strong> HTML and CSS render, and JavaScript can drive the DOM — a counter app works. The CSS surface is partial and parts of the toolkit (packaging, DevTools, hot reload) are not built. Read <a href="#status">Status</a> before you get excited.</sub>
 </p>
 
 ---
@@ -44,8 +44,8 @@ Honesty is the product, so here is the unflattering version.
 | **M3** | ✅ | QuickJS + DOM bridge + events — **a counter app works**; hover, checkbox, details and focus come from the engine |
 | **M4** | ✅ | transitions, `@keyframes`, custom properties, `@media` — driven by a real animation clock |
 | **M5** | ✅ | scrolling, focus, keyboard nav, text input — IME wired but unverified |
-| M6 | ◐ | accessibility tree works; menus, tray, dialogs, clipboard still to do |
-| M7 | | `kiln init/dev/build/check`, hot reload, DevTools over CDP |
+| **M6** | ✅ | accessibility tree, native menus, tray, clipboard, dialogs, notifications |
+| M7 | next | `kiln init/dev/build/check`, hot reload, DevTools over CDP |
 | M8 | | **Preact runs unmodified.** Tailwind works. |
 | M9 | | packaging: `.app`/`.dmg`/`.msi`/`.deb`, signing, notarization |
 | M10 | | automation server, record/replay, deterministic screenshots |
@@ -303,6 +303,37 @@ cargo run -- render examples/input.html out.png --type "Marshall" --scroll "#lis
 Nothing in that page polls. The input's `input` listener wrote the echo line, the list's `scroll` listener wrote `scrollTop: 90`, and the `:focus` border came from the cascade. `tests/golden/input.txt` records both strings.
 
 Wheel events go through Blitz's `EventDriver` like every other input, so scroll clamping and bubbling to the parent — then the viewport — come from the engine. Kiln's part is forwarding winit's wheel and IME events, which it previously did not, and calling `scroll_by`, since Blitz treats scrolling as the shell's job rather than the DOM's.
+
+## Native where it should be native
+
+Menus, the tray, the clipboard, file dialogs and notifications are real OS objects, not drawn by Kiln. JavaScript sees one `kiln.*` global:
+
+```js
+kiln.menu.set([
+  { label: "File", items: [
+      { id: "new", label: "New Window", accelerator: "CmdOrCtrl+N",
+        click: (id) => console.log(id) },
+      "-",
+      { id: "close", label: "Close", enabled: false },
+  ]},
+]);
+
+kiln.clipboard.writeText("written by kiln");
+kiln.notify("Done", "Export finished");
+```
+
+A native menu bar cannot be checked by a screenshot, so the menu is kept as a **model** and the OS binding is a thin adapter over it. The model serialises, which makes the structure a golden like everything else:
+
+```console
+$ kiln render examples/native.html out.png --menu out.txt
+
+"File"
+  "New Window" #new [CmdOrCtrl+N]
+  ---
+  "Close" #close [CmdOrCtrl+W] disabled
+```
+
+Being explicit about what that does and doesn't prove: the menu and tray structure are pinned by a golden, and the clipboard round-trips in a real test that skips when the machine has no clipboard. Dialogs and notifications are fire-and-forget and are **not** verified — they block on the OS, and no golden covers them.
 
 ## The accessibility tree is testable
 
