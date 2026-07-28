@@ -1,0 +1,121 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Kiln — Base UI</title>
+    <style>
+      body {
+        margin: 0;
+        height: 700px;
+        position: relative;
+        background: #0b1226;
+        color: #f4e7d3;
+        font-family: Helvetica, Arial, sans-serif;
+      }
+      h1 {
+        position: absolute;
+        top: 30px;
+        left: 340px;
+        margin: 0;
+        font-size: 13px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #8fa0c4;
+      }
+      p {
+        position: absolute;
+        top: 58px;
+        left: 340px;
+        margin: 0;
+        width: 320px;
+        font-size: 13px;
+        line-height: 1.6;
+        color: #6c7a9c;
+      }
+      button {
+        background: #f5a93c;
+        color: #0b1226;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 16px;
+        font-size: 14px;
+      }
+      [role="menu"] {
+        width: 200px;
+        padding: 6px;
+        border: 1px solid #7fc3ac;
+        border-radius: 10px;
+        background: #131e3d;
+      }
+      [role="menuitem"] {
+        padding: 9px 12px;
+        border-radius: 6px;
+        font-size: 14px;
+      }
+      .slot {
+        position: absolute;
+      }
+      #s-top {
+        left: 40px;
+        top: 30px;
+      }
+      #s-bottom {
+        left: 40px;
+        top: 620px;
+      }
+      #s-right {
+        left: 930px;
+        top: 300px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Base UI menus</h1>
+    <p>
+      Three menus opened against three viewport edges. Nothing in this page says
+      where they should go — floating-ui measures each trigger and writes a
+      transform. The top one opens downward, the bottom one flips above its
+      trigger, and the right one shifts left to stay on screen.
+    </p>
+
+    <div class="slot" id="s-top"><div id="m-top"></div></div>
+    <div class="slot" id="s-bottom"><div id="m-bottom"></div></div>
+    <div class="slot" id="s-right"><div id="m-right"></div></div>
+
+    <script src="./vendor/baseui.js"></script>
+    <script>
+      function menu(id, label) {
+        return h(
+          BaseMenu.Root,
+          { defaultOpen: true },
+          h(BaseMenu.Trigger, { id: "t-" + id }, label),
+          h(
+            BaseMenu.Portal,
+            null,
+            h(
+              BaseMenu.Positioner,
+              { side: "bottom", align: "start", sideOffset: 6 },
+              h(
+                BaseMenu.Popup,
+                null,
+                h(BaseMenu.Item, null, "Rename"),
+                h(BaseMenu.Item, null, "Duplicate"),
+                h(BaseMenu.Item, null, "Delete"),
+              ),
+            ),
+          ),
+        );
+      }
+
+      preactRender(menu("top", "top"), document.querySelector("#m-top"));
+      preactRender(
+        menu("bottom", "near bottom"),
+        document.querySelector("#m-bottom"),
+      );
+      preactRender(
+        menu("right", "near right"),
+        document.querySelector("#m-right"),
+      );
+    </script>
+  </body>
+</html>

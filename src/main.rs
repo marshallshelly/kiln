@@ -368,4 +368,9 @@ mod snapshot_tests {
     fn observers() {
         golden("observers", &[]);
     }
+
+    #[test]
+    fn baseui() {
+        golden("baseui", &[]);
+    }
 }

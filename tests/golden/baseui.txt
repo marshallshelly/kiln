@@ -1,0 +1,82 @@
+0 #document
+  0/0 html @ 0,0 1000x700 | display:block/flow position:static
+    0/0/0 head @ 0,0 0x0 | display:none/none position:static
+      0/0/0/1 meta charset="utf-8" @ 0,0 0x0 | display:none
+      0/0/0/3 title @ 0,0 0x0 | display:none
+        0/0/0/3/0 "Kiln — Base UI"
+      0/0/0/5 style @ 0,0 0x0 | display:none
+        0/0/0/5/0 <858 chars>
+    0/0/2 body style="overflow: hidden;" @ 0,0 1000x700 | display:block/flow position:relative
+      0/0/2/1 h1 data-base-ui-inert="" @ 340,30 134x15.5 | display:block/flow position:absolute
+        0/0/2/1/0 "Base UI menus"
+      0/0/2/3 p data-base-ui-inert="" @ 340,58 320x124.75 | display:block/flow position:absolute
+        0/0/2/3/0 "Three menus opened against three viewport edges. Nothing in this page says where they should go — floating-ui measures each trigger and writes a transform. The top one opens downward, the bottom one flips above its trigger, and the right one shifts left to stay on screen."
+      0/0/2/5 div#s-top.slot data-base-ui-inert="" @ 40,30 52x36.75 | display:block/flow position:absolute
+        0/0/2/5/0 div#m-top @ 40,30 52x36.75 | display:block/flow position:static
+          0/0/2/5/0/0 span aria-hidden="true" data-base-ui-focus-guard="" data-base-ui-inert="" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0px; left: 0px; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px;" tabindex="0" @ 39,29 1x1 | display:block/flow position:fixed
+          0/0/2/5/0/1 button#t-top aria-controls="P0-2" aria-expanded="true" aria-haspopup="menu" data-popup-open="" data-pressed="" tabindex="0" type="button" @ 40,29 52x36.75 | display:inline/flex position:static
+            0/0/2/5/0/1/0 "top"
+          0/0/2/5/0/2 span aria-hidden="true" data-base-ui-inert="" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0; left: 0; border: 0; padding: 0; width: 1; height: 1; margin: -1;" tabindex="-1" @ 40,30 0x0 | display:block/flow position:fixed
+          0/0/2/5/0/3 span aria-hidden="true" data-base-ui-focus-guard="" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0px; left: 0px; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px;" tabindex="0" @ 39,29 1x1 | display:block/flow position:fixed
+          0/0/2/5/0/4 span aria-hidden="true" data-base-ui-focus-guard="" data-type="outside" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0px; left: 0px; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px;" tabindex="0" @ 39,29 1x1 | display:block/flow position:fixed
+          0/0/2/5/0/5 span aria-owns="P0-6" data-base-ui-inert="" style="clip-path: inset(50%); position: fixed; top: 0px; left: 0px;" @ 40,30 0x0 | display:block/flow position:fixed
+          0/0/2/5/0/6 span aria-hidden="true" data-base-ui-focus-guard="" data-type="outside" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0px; left: 0px; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px;" tabindex="0" @ 39,29 1x1 | display:block/flow position:fixed
+      0/0/2/7 div#s-bottom.slot data-base-ui-inert="" @ 40,620 107x36.75 | display:block/flow position:absolute
+        0/0/2/7/0 div#m-bottom @ 40,620 107x36.75 | display:block/flow position:static
+          0/0/2/7/0/0 span aria-hidden="true" data-base-ui-focus-guard="" data-base-ui-inert="" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0px; left: 0px; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px;" tabindex="0" @ 39,619 1x1 | display:block/flow position:fixed
+          0/0/2/7/0/1 button#t-bottom aria-controls="P0-2" aria-expanded="true" aria-haspopup="menu" data-popup-open="" data-pressed="" tabindex="0" type="button" @ 40,619 107x36.75 | display:inline/flex position:static
+            0/0/2/7/0/1/0 "near bottom"
+          0/0/2/7/0/2 span aria-hidden="true" data-base-ui-inert="" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0; left: 0; border: 0; padding: 0; width: 1; height: 1; margin: -1;" tabindex="-1" @ 40,620 0x0 | display:block/flow position:fixed
+          0/0/2/7/0/3 span aria-hidden="true" data-base-ui-focus-guard="" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0px; left: 0px; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px;" tabindex="0" @ 39,619 1x1 | display:block/flow position:fixed
+          0/0/2/7/0/4 span aria-hidden="true" data-base-ui-focus-guard="" data-type="outside" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0px; left: 0px; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px;" tabindex="0" @ 39,619 1x1 | display:block/flow position:fixed
+          0/0/2/7/0/5 span aria-owns="P0-6" data-base-ui-inert="" style="clip-path: inset(50%); position: fixed; top: 0px; left: 0px;" @ 40,620 0x0 | display:block/flow position:fixed
+          0/0/2/7/0/6 span aria-hidden="true" data-base-ui-focus-guard="" data-type="outside" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0px; left: 0px; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px;" tabindex="0" @ 39,619 1x1 | display:block/flow position:fixed
+      0/0/2/9 div#s-right.slot data-base-ui-inert="" @ 930,300 92x36.75 | display:block/flow position:absolute
+        0/0/2/9/0 div#m-right @ 930,300 92x36.75 | display:block/flow position:static
+          0/0/2/9/0/0 span aria-hidden="true" data-base-ui-focus-guard="" data-base-ui-inert="" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0px; left: 0px; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px;" tabindex="0" @ 929,299 1x1 | display:block/flow position:fixed
+          0/0/2/9/0/1 button#t-right aria-controls="P0-2" aria-expanded="true" aria-haspopup="menu" data-popup-open="" data-pressed="" tabindex="0" type="button" @ 930,299 92x36.75 | display:inline/flex position:static
+            0/0/2/9/0/1/0 "near right"
+          0/0/2/9/0/2 span aria-hidden="true" data-base-ui-inert="" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0; left: 0; border: 0; padding: 0; width: 1; height: 1; margin: -1;" tabindex="-1" @ 930,300 0x0 | display:block/flow position:fixed
+          0/0/2/9/0/3 span aria-hidden="true" data-base-ui-focus-guard="" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0px; left: 0px; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px;" tabindex="0" @ 929,299 1x1 | display:block/flow position:fixed
+          0/0/2/9/0/4 span aria-hidden="true" data-base-ui-focus-guard="" data-type="outside" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0px; left: 0px; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px;" tabindex="0" @ 929,299 1x1 | display:block/flow position:fixed
+          0/0/2/9/0/5 span aria-owns="P0-6" data-base-ui-inert="" style="clip-path: inset(50%); position: fixed; top: 0px; left: 0px;" @ 930,300 0x0 | display:block/flow position:fixed
+          0/0/2/9/0/6 span aria-hidden="true" data-base-ui-focus-guard="" data-type="outside" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0px; left: 0px; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px;" tabindex="0" @ 929,299 1x1 | display:block/flow position:fixed
+      0/0/2/11 script src="./vendor/baseui.js" @ 0,0 0x0 | display:none/none position:static
+      0/0/2/13 script @ 0,0 0x0 | display:none/none position:static
+        0/0/2/13/0 <601 chars>
+      0/0/2/15 div#P0-6 data-base-ui-inert="" data-base-ui-portal="" @ 0,0 1000x0 | display:block/flow position:static
+        0/0/2/15/0 div data-base-ui-inert="" role="presentation" style="position: fixed; inset: 0px; user-select: none; -webkit-user-select: none; clip-path: polygon( 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, 40px 29px, 40px 65.80000305175781px, 92px 65.80000305175781px, 92px 29px, 40px 29px );" @ 0,0 1000x0 | display:block/flow position:fixed
+        0/0/2/15/1 div data-align="start" data-open="" data-side="bottom" role="presentation" style="position: absolute; left: 0px; top: 0px; transform: translate(40px, 72px); --available-width: 990px; --available-height: 623.1999969482422px; --anchor-width: 52px; --anchor-height: 36.80000305175781px; --transform-origin: 26px -6px;" @ 0,0 214x118.5 | display:block/flow position:absolute
+          0/0/2/15/1/0 span aria-hidden="true" data-base-ui-focus-guard="" data-type="inside" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0px; left: 0px; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px;" tabindex="0" @ -1,-1 1x1 | display:block/flow position:fixed
+          0/0/2/15/1/1 div#P0-2 aria-labelledby="t-top" aria-orientation="vertical" data-align="start" data-base-ui-focusable="" data-open="" data-rootownerid="P0-1" data-side="bottom" role="menu" tabindex="-1" @ 0,0 214x118.5 | display:block/flow position:static
+            0/0/2/15/1/1/0 div#base-ui-P0-8 role="menuitem" tabindex="-1" @ 7,7 200x34.75 | display:block/flow position:static
+              0/0/2/15/1/1/0/0 "Rename"
+            0/0/2/15/1/1/1 div#base-ui-P0-9 role="menuitem" tabindex="-1" @ 7,42 200x34.75 | display:block/flow position:static
+              0/0/2/15/1/1/1/0 "Duplicate"
+            0/0/2/15/1/1/2 div#base-ui-P0-10 role="menuitem" tabindex="-1" @ 7,77 200x34.75 | display:block/flow position:static
+              0/0/2/15/1/1/2/0 "Delete"
+          0/0/2/15/1/2 span aria-hidden="true" data-base-ui-focus-guard="" data-type="inside" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0px; left: 0px; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px;" tabindex="0" @ -1,-1 1x1 | display:block/flow position:fixed
+      0/0/2/16 div#P0-6 data-base-ui-inert="" data-base-ui-portal="" @ 0,0 1000x0 | display:block/flow position:static
+        0/0/2/16/0 div data-base-ui-inert="" role="presentation" style="position: fixed; inset: 0px; user-select: none; -webkit-user-select: none; clip-path: polygon( 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, 40px 619px, 40px 655.8000030517578px, 147px 655.8000030517578px, 147px 619px, 40px 619px );" @ 0,0 1000x0 | display:block/flow position:fixed
+        0/0/2/16/1 div data-align="start" data-open="" data-side="top" role="presentation" style="position: absolute; left: 0px; top: 0px; transform: translate(40px, 495px); --available-width: 990px; --available-height: 607px; --anchor-width: 107px; --anchor-height: 36.80000305175781px; --transform-origin: 53.5px calc(100% + 6px);" @ 0,0 214x118.5 | display:block/flow position:absolute
+          0/0/2/16/1/0 span aria-hidden="true" data-base-ui-focus-guard="" data-type="inside" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0px; left: 0px; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px;" tabindex="0" @ -1,-1 1x1 | display:block/flow position:fixed
+          0/0/2/16/1/1 div#P0-2 aria-labelledby="t-bottom" aria-orientation="vertical" data-align="start" data-base-ui-focusable="" data-open="" data-rootownerid="P0-1" data-side="top" role="menu" tabindex="-1" @ 0,0 214x118.5 | display:block/flow position:static
+            0/0/2/16/1/1/0 div#base-ui-P0-8 role="menuitem" tabindex="-1" @ 7,7 200x34.75 | display:block/flow position:static
+              0/0/2/16/1/1/0/0 "Rename"
+            0/0/2/16/1/1/1 div#base-ui-P0-9 role="menuitem" tabindex="-1" @ 7,42 200x34.75 | display:block/flow position:static
+              0/0/2/16/1/1/1/0 "Duplicate"
+            0/0/2/16/1/1/2 div#base-ui-P0-10 role="menuitem" tabindex="-1" @ 7,77 200x34.75 | display:block/flow position:static
+              0/0/2/16/1/1/2/0 "Delete"
+          0/0/2/16/1/2 span aria-hidden="true" data-base-ui-focus-guard="" data-type="inside" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0px; left: 0px; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px;" tabindex="0" @ -1,-1 1x1 | display:block/flow position:fixed
+      0/0/2/17 div#P0-6 data-base-ui-inert="" data-base-ui-portal="" @ 0,0 1000x0 | display:block/flow position:static
+        0/0/2/17/0 div data-base-ui-inert="" role="presentation" style="position: fixed; inset: 0px; user-select: none; -webkit-user-select: none; clip-path: polygon( 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, 930px 299px, 930px 335.8000030517578px, 1022px 335.8000030517578px, 1022px 299px, 930px 299px );" @ 0,0 1000x0 | display:block/flow position:fixed
+        0/0/2/17/1 div data-align="end" data-open="" data-side="bottom" role="presentation" style="position: absolute; left: 0px; top: 0px; transform: translate(781px, 342px); --available-width: 990px; --available-height: 353.1999969482422px; --anchor-width: 92px; --anchor-height: 36.80000305175781px; --transform-origin: 195px -6px;" @ 0,0 214x118.5 | display:block/flow position:absolute
+          0/0/2/17/1/0 span aria-hidden="true" data-base-ui-focus-guard="" data-type="inside" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0px; left: 0px; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px;" tabindex="0" @ -1,-1 1x1 | display:block/flow position:fixed
+          0/0/2/17/1/1 div#P0-2 aria-labelledby="t-right" aria-orientation="vertical" data-align="end" data-base-ui-focusable="" data-open="" data-rootownerid="P0-1" data-side="bottom" role="menu" tabindex="-1" @ 0,0 214x118.5 | display:block/flow position:static
+            0/0/2/17/1/1/0 div#base-ui-P0-8 role="menuitem" tabindex="-1" @ 7,7 200x34.75 | display:block/flow position:static
+              0/0/2/17/1/1/0/0 "Rename"
+            0/0/2/17/1/1/1 div#base-ui-P0-9 role="menuitem" tabindex="-1" @ 7,42 200x34.75 | display:block/flow position:static
+              0/0/2/17/1/1/1/0 "Duplicate"
+            0/0/2/17/1/1/2 div#base-ui-P0-10 role="menuitem" tabindex="-1" @ 7,77 200x34.75 | display:block/flow position:static
+              0/0/2/17/1/1/2/0 "Delete"
+          0/0/2/17/1/2 span aria-hidden="true" data-base-ui-focus-guard="" data-type="inside" style="clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; position: fixed; top: 0px; left: 0px; border: 0px; padding: 0px; width: 1px; height: 1px; margin: -1px;" tabindex="0" @ -1,-1 1x1 | display:block/flow position:fixed

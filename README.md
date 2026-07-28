@@ -187,11 +187,11 @@ Getting there needed three specific things, each worth knowing if you're porting
 
 ## Base UI runs
 
-Unstyled component primitives work too. [Base UI](https://base-ui.com)'s `Menu` — trigger, portal, positioner, popup — renders and opens, on `preact/compat` rather than react-dom:
+Unstyled component primitives work too. [Base UI](https://base-ui.com) `1.0.0-rc.0`'s `Menu` — trigger, portal, positioner, popup — renders and opens, on `preact/compat` rather than react-dom. The bundle is vendored in [`examples/vendor/`](examples/vendor/), so this is reproducible with no install step:
 
-<p align="center">
-  <img src="assets/baseui.png" width="620" alt="A Base UI dropdown menu open below its trigger, with Rename, Duplicate and Delete items">
-</p>
+```bash
+cargo run -- render examples/baseui.html out.png
+```
 
 Getting there needed real layout geometry rather than stubs:
 
@@ -202,7 +202,7 @@ Getting there needed real layout geometry rather than stubs:
 
 ### Collision detection and edge flipping work
 
-Three menus, all opened against a viewport edge, in one headless render:
+Three menus, all opened against a viewport edge, in one headless render of [`examples/baseui.html`](examples/baseui.html):
 
 <p align="center">
   <img src="assets/collision.png" width="720" alt="Three menus. The one at the top opens downward, the one near the bottom edge opens upward instead, and the one near the right edge is shifted left to stay on screen.">
@@ -217,6 +217,8 @@ Nothing in the page says where these should go. Floating-ui measures the trigger
 | `near right` at x=930 | `translate(781px, 342px)` | **shifted left** to keep 214px on screen |
 
 Getting the last one honest took `clientLeft`/`clientTop`, which floating-ui adds to every offset — unimplemented, they made `number + undefined` and every popup landed at `translate(NaNpx, NaNpx)`.
+
+Those three transforms are pinned by [`tests/golden/baseui.txt`](tests/golden/baseui.txt), so a regression in positioning fails `cargo test` rather than quietly changing a screenshot.
 
 Still missing: `getBoundingClientRect` ignores transforms, so a positioned popup reports its untransformed box.
 
