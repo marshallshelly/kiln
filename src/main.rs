@@ -373,4 +373,9 @@ mod snapshot_tests {
     fn baseui() {
         golden("baseui", &[]);
     }
+
+    #[test]
+    fn fixed() {
+        golden("fixed", &[]);
+    }
 }

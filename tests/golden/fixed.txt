@@ -1,0 +1,19 @@
+0 #document
+  0/0 html @ 0,0 1000x237.5 | display:block/flow position:static
+    0/0/0 head @ 0,0 0x0 | display:none/none position:static
+      0/0/0/1 meta charset="utf-8" @ 0,0 0x0 | display:none
+      0/0/0/3 title @ 0,0 0x0 | display:none
+        0/0/0/3/0 "Kiln — position: fixed"
+      0/0/0/5 style @ 0,0 0x0 | display:none
+        0/0/0/5/0 <687 chars>
+    0/0/2 body @ 0,0 1000x237.5 | display:block/flow position:static
+      0/0/2/1 h1 @ 0,0 1000x35.5 | display:block/flow position:static
+        0/0/2/1/0 "position: fixed"
+      0/0/2/3 div#free.fixed @ 24,60 162x52 | display:block/flow position:fixed
+        0/0/2/3/0 "no positioned ancestor"
+      0/0/2/5 div.ancestor @ 200,186 302x202 | display:block/flow position:relative
+        0/0/2/5/1 div#nested.fixed @ 601,247 162x52 | display:block/flow position:fixed
+          0/0/2/5/1/0 "inside position: relative"
+        0/0/2/5/3 div#stretch @ 201,187 300x200 | display:block/flow position:fixed
+      0/0/2/7 script @ 0,0 0x0 | display:none/none position:static
+        0/0/2/7/0 <454 chars>

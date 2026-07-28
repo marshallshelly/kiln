@@ -38,9 +38,9 @@ Honesty is the product, so here is the unflattering version.
 
 | Milestone | | |
 |---|---|---|
-| **M0** | ✅ done | winit window + wgpu, one rounded rectangle from a hardcoded struct |
-| **M1** | ✅ done | HTML + CSS renders — cascade, flexbox, gradients, text — in a window and headless |
-| **M3** | ✅ done | QuickJS + DOM bridge + events — **a counter app works**; hover, checkbox, details and focus come from the engine |
+| **M0** | ✅ | winit window + wgpu, one rounded rectangle from a hardcoded struct |
+| **M1** | ✅ | HTML + CSS renders — cascade, flexbox, gradients, text — in a window and headless |
+| **M3** | ✅ | QuickJS + DOM bridge + events — **a counter app works**; hover, checkbox, details and focus come from the engine |
 | M2 | next | Parley text depth: font fallback, non-Latin scripts, richer inline layout |
 | M4 | | restyle invalidation, transitions, keyframes, custom properties |
 | M5 | | scrolling with native physics, focus, keyboard nav, text input with IME |
@@ -221,6 +221,18 @@ Getting the last one honest took `clientLeft`/`clientTop`, which floating-ui add
 Those three transforms are pinned by [`tests/golden/baseui.txt`](tests/golden/baseui.txt), so a regression in positioning fails `cargo test` rather than quietly changing a screenshot.
 
 Still missing: `getBoundingClientRect` ignores transforms, so a positioned popup reports its untransformed box.
+
+### `position: fixed` is honest about being wrong
+
+Taffy has no `fixed`, so `stylo_taffy` maps it to `absolute`. The cascade still reports `fixed` — `getComputedStyle` says so, and so does the snapshot — but layout resolves the element against its nearest positioned ancestor rather than the viewport. [`examples/fixed.html`](examples/fixed.html) pins every case:
+
+| Case | Result |
+| --- | --- |
+| no positioned ancestor | **correct** — `absolute` and `fixed` share the initial containing block |
+| inside `position: relative` | wrong offset, the ancestor's origin is added |
+| `inset: 0` inside one | wrong offset *and* wrong size — stretches to the ancestor, not the viewport |
+
+This one cannot be fixed from Kiln's side. The correct fix is to hoist fixed nodes to be layout children of the root before paint order is derived from the layout tree — a step inside Blitz's `resolve`, which cannot be reassembled externally because three of the fields it touches are crate-private. Reimplementing that pipeline to sneak a step in would mean owning a copy of an engine this project deliberately does not write, so it stays a documented gap with a golden that flips the day the upstream fix lands.
 
 `IntersectionObserver` needed no engine work at all — it is a hundred lines of prelude over the rect and viewport calls that already existed, running on the same layout pass as `ResizeObserver`. `root`, `rootMargin` in px and %, and `threshold` arrays all behave:
 
