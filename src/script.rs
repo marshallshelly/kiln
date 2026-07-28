@@ -123,10 +123,18 @@ class Element extends Node {
   getClientRects() { return [this.getBoundingClientRect()]; }
   get offsetWidth() { const m = __kiln.boxMetrics(this.__id); return m ? m[0] : 0; }
   get offsetHeight() { const m = __kiln.boxMetrics(this.__id); return m ? m[1] : 0; }
-  get clientWidth() { const m = __kiln.boxMetrics(this.__id); return m ? m[2] : 0; }
-  get clientHeight() { const m = __kiln.boxMetrics(this.__id); return m ? m[3] : 0; }
+  get clientWidth() {
+    if (this.localName === "html") return __kiln.viewportSize()[0];
+    const m = __kiln.boxMetrics(this.__id); return m ? m[2] : 0;
+  }
+  get clientHeight() {
+    if (this.localName === "html") return __kiln.viewportSize()[1];
+    const m = __kiln.boxMetrics(this.__id); return m ? m[3] : 0;
+  }
   get scrollWidth() { const m = __kiln.boxMetrics(this.__id); return m ? m[4] : 0; }
   get scrollHeight() { const m = __kiln.boxMetrics(this.__id); return m ? m[5] : 0; }
+  get clientLeft() { const m = __kiln.boxMetrics(this.__id); return m ? m[8] : 0; }
+  get clientTop() { const m = __kiln.boxMetrics(this.__id); return m ? m[9] : 0; }
   get scrollLeft() { const m = __kiln.boxMetrics(this.__id); return m ? m[6] : 0; }
   set scrollLeft(_v) {}
   get scrollTop() { const m = __kiln.boxMetrics(this.__id); return m ? m[7] : 0; }
@@ -341,12 +349,58 @@ globalThis.matchMedia = (query) => ({
   addListener() {}, removeListener() {},
 });
 globalThis.CSS = { supports: () => false, escape: (s) => String(s) };
-globalThis.getComputedStyle = () => new Proxy({}, {
-  get(_t, prop) {
-    if (prop === "getPropertyValue") return () => "";
-    return "";
-  },
-});
+const __computedDefaults = {
+  transform: "none",
+  perspective: "none",
+  filter: "none",
+  "backdrop-filter": "none",
+  "will-change": "auto",
+  contain: "none",
+  "container-type": "normal",
+  translate: "none",
+  rotate: "none",
+  scale: "none",
+  "content-visibility": "visible",
+  display: "block",
+  float: "none",
+  "z-index": "auto",
+  top: "auto",
+  left: "auto",
+  right: "auto",
+  bottom: "auto",
+};
+
+globalThis.getComputedStyle = (element) => {
+  const id = element && element.__id;
+  const values = new Map();
+  if (id !== undefined && id !== null) {
+    const flat = __kiln.computedStyle(id);
+    for (let i = 0; i + 1 < flat.length; i += 2) values.set(flat[i], flat[i + 1]);
+  }
+  const inline = id === undefined || id === null ? new Map() : __declarations(id);
+
+  const lookup = (name) => {
+    const key = __dashed(name);
+    if (key === "overflow") return values.get("overflow-x") || "visible";
+    const own = values.get(key);
+    if (own !== undefined) return own;
+    const declared = inline.get(key);
+    if (declared !== undefined) return declared;
+    const fallback = __computedDefaults[key];
+    return fallback === undefined ? "" : fallback;
+  };
+
+  return new Proxy({}, {
+    get(_target, prop) {
+      if (prop === "getPropertyValue") return (name) => lookup(name);
+      if (prop === "getPropertyPriority") return () => "";
+      if (prop === "length") return values.size;
+      if (typeof prop !== "string") return undefined;
+      return lookup(prop);
+    },
+    has(_target, prop) { return typeof prop === "string"; },
+  });
+};
 Object.defineProperty(globalThis, "innerWidth", { get: () => __kiln.viewportSize()[0] });
 Object.defineProperty(globalThis, "innerHeight", { get: () => __kiln.viewportSize()[1] });
 globalThis.devicePixelRatio = 1;
@@ -546,6 +600,7 @@ impl Script {
                 bind!("rect", d, move |id: usize| d.client_rect(id));
                 bind!("boxMetrics", d, move |id: usize| d.box_metrics(id));
                 bind!("viewportSize", d, move || d.viewport_size());
+                bind!("computedStyle", d, move |id: usize| d.computed_style(id));
 
                 kiln.set(
                     "log",

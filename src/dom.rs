@@ -306,7 +306,99 @@ impl Dom {
             f64::from(layout.content_size.height).max(client_height),
             node.scroll_offset.x,
             node.scroll_offset.y,
+            f64::from(layout.border.left),
+            f64::from(layout.border.top),
         ])
+    }
+
+    pub fn computed_style(&self, node_id: usize) -> Vec<String> {
+        self.flush_layout();
+        let document = self.document.borrow();
+        let Some(node) = document.get_node(node_id) else {
+            return Vec::new();
+        };
+
+        let layout = &node.unrounded_layout;
+        let px = |v: f32| format!("{v}px");
+
+        let content_width = (layout.size.width
+            - layout.border.left
+            - layout.border.right
+            - layout.padding.left
+            - layout.padding.right
+            - layout.scrollbar_size.width)
+            .max(0.0);
+        let content_height = (layout.size.height
+            - layout.border.top
+            - layout.border.bottom
+            - layout.padding.top
+            - layout.padding.bottom
+            - layout.scrollbar_size.height)
+            .max(0.0);
+
+        let mut out = vec![
+            "width".into(),
+            px(content_width),
+            "height".into(),
+            px(content_height),
+            "padding-left".into(),
+            px(layout.padding.left),
+            "padding-right".into(),
+            px(layout.padding.right),
+            "padding-top".into(),
+            px(layout.padding.top),
+            "padding-bottom".into(),
+            px(layout.padding.bottom),
+            "border-left-width".into(),
+            px(layout.border.left),
+            "border-right-width".into(),
+            px(layout.border.right),
+            "border-top-width".into(),
+            px(layout.border.top),
+            "border-bottom-width".into(),
+            px(layout.border.bottom),
+            "margin-left".into(),
+            px(layout.margin.left),
+            "margin-right".into(),
+            px(layout.margin.right),
+            "margin-top".into(),
+            px(layout.margin.top),
+            "margin-bottom".into(),
+            px(layout.margin.bottom),
+        ];
+
+        fn keyword<T: std::fmt::Debug>(value: &T) -> String {
+            let raw = format!("{value:?}");
+            let mut result = String::with_capacity(raw.len() + 4);
+            for (i, ch) in raw.chars().enumerate() {
+                if ch.is_uppercase() {
+                    if i > 0 {
+                        result.push('-');
+                    }
+                    result.extend(ch.to_lowercase());
+                } else {
+                    result.push(ch);
+                }
+            }
+            result
+        }
+
+        if let Some(style) = node.primary_styles() {
+            out.push("position".into());
+            out.push(keyword(&style.clone_position()));
+            out.push("overflow-x".into());
+            out.push(keyword(&style.clone_overflow_x()));
+            out.push("overflow-y".into());
+            out.push(keyword(&style.clone_overflow_y()));
+            out.push("box-sizing".into());
+            out.push(keyword(&style.clone_box_sizing()));
+            out.push("visibility".into());
+            out.push(keyword(&style.clone_visibility()));
+            out.push("direction".into());
+            out.push(keyword(&style.clone_direction()));
+        }
+
+        out
     }
 
     pub fn viewport_size(&self) -> Vec<f64> {
