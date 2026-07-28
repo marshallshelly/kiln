@@ -10,7 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/marshallshelly/kiln?style=flat-square&color=0B1226&label=stars" alt="Stars">
-  <img src="https://img.shields.io/badge/status-M0--M7%20%2B%20Preact--F5A93C?style=flat-square" alt="Status: M0 to M7 plus Preact">
+  <img src="https://img.shields.io/badge/status-M0--M8--F5A93C?style=flat-square" alt="Status: M0 to M8">
   <img src="https://img.shields.io/badge/built%20with-Rust-0B1226?style=flat-square" alt="Built with Rust">
   <img src="https://img.shields.io/badge/license-Apache--2.0-0B1226?style=flat-square" alt="Apache-2.0 license">
 </p>
@@ -46,8 +46,8 @@ Honesty is the product, so here is the unflattering version.
 | **M5** | ✅ | scrolling, focus, keyboard nav, text input — IME wired but unverified |
 | **M6** | ✅ | accessibility tree, native menus, tray, clipboard, dialogs, notifications |
 | **M7** | ✅ | `init`, `dev` with reload on save, `check`, `build`, DevTools over CDP |
-| M8 | next | **Preact runs unmodified.** Tailwind works. |
-| M9 | | packaging: `.app`/`.dmg`/`.msi`/`.deb`, signing, notarization |
+| **M8** | ✅ | **Preact runs unmodified. Tailwind works.** |
+| M9 | next | packaging: `.app`/`.dmg`/`.msi`/`.deb`, signing, notarization |
 | M10 | | automation server, record/replay, deterministic screenshots |
 | M11 | | static TypeScript compilation tier |
 
@@ -207,6 +207,37 @@ Getting there needed three specific things, each worth knowing if you're porting
 - **Stable node identity.** Preact compares DOM nodes with `===`, so JavaScript wrappers are cached per node id rather than created per call.
 - **`onclick` must exist as a property.** Preact lowercases an event name only if `"onclick" in element`; otherwise it registers the type as `"Click"` and nothing ever matches. Handlers are also called with `this` bound to the node, which its event proxy relies on.
 - **The microtask queue has to be drained.** Preact schedules re-renders on a promise. Without draining QuickJS's job queue after every script evaluation and event dispatch, state updates run and the screen never changes.
+
+## Tailwind works
+
+Tailwind v4 renders as written — `oklch()` colours, `@layer` cascade layers, grid, and Preflight's reset:
+
+<p align="center">
+  <img src="assets/tailwind.png" width="720" alt="A dark Tailwind page with a heading, an amber badge, a three-column grid of bordered cards and an amber button.">
+</p>
+
+```console
+$ kiln render examples/tailwind.html out.png
+$ kiln check  examples/tailwind.html
+    declarations        333
+    supported           333  (100%)
+```
+
+That is real generated CSS, vendored in [`examples/vendor/`](examples/vendor/) so the claim can be rebuilt.
+
+Getting there needed one fix worth naming: Kiln had never been handed a page with `<link rel="stylesheet">`, and **panicked** on one. Since Tailwind emits a `.css` file, the normal workflow was impossible. Pages now resolve local sub-resources against a `file:` base URL. Nothing is fetched over the network, and an attempt to says so out loud.
+
+### check speaks in utilities
+
+`display: flex` is not what you edit — `flex` is. So findings from generated CSS report the utility, with the declaration underneath:
+
+```console
+    ×1   sticky                             KC1201  use a fixed header plus scroll padding
+         position: sticky
+         examples/vendor/tailwind.css:213:5
+```
+
+Only utilities the markup actually uses are reported. Tailwind ships more CSS than any page references, and telling you about `truncate` when you never wrote it is noise, not honesty.
 
 ## Base UI runs
 

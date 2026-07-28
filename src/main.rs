@@ -302,7 +302,7 @@ fn load(input: &str) -> Result<(Dom, Script, std::rc::Rc<native::Native>)> {
     let path = std::path::Path::new(input);
     let html = std::fs::read_to_string(path).with_context(|| format!("read {input}"))?;
     let base = path.parent().unwrap_or_else(|| std::path::Path::new("."));
-    let dom = Dom::from_html(&html, DEFAULT_WIDTH, DEFAULT_HEIGHT, 1.0);
+    let dom = Dom::from_html(&html, Some(path), DEFAULT_WIDTH, DEFAULT_HEIGHT, 1.0);
 
     let native = std::rc::Rc::new(native::Native::default());
     let script =
@@ -952,6 +952,56 @@ mod snapshot_tests {
         );
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn tailwind() {
+        golden("tailwind", &[]);
+    }
+
+    #[test]
+    fn check_reports_tailwind_utilities_the_page_uses() {
+        // The vendored stylesheet ships utilities this page never references.
+        let clean = check::check_path(std::path::Path::new("examples/tailwind.html")).unwrap();
+        assert!(clean.declarations > 300, "the linked stylesheet was not read");
+        assert!(
+            clean.findings.is_empty(),
+            "unused utilities should not be reported: {:?}",
+            clean.findings.first().map(|f| &f.declaration)
+        );
+
+        // Using two of them surfaces both, named as utilities rather than as
+        // the declarations Tailwind generated.
+        let page = std::env::temp_dir().join("kiln-tw-uses.html");
+        let source = std::fs::read_to_string("examples/tailwind.html").unwrap();
+        std::fs::write(
+            &page,
+            source.replace("class=\"mt-6", "class=\"sticky truncate mt-6"),
+        )
+        .unwrap();
+        let vendor = std::env::temp_dir().join("vendor");
+        std::fs::create_dir_all(&vendor).unwrap();
+        std::fs::copy("examples/vendor/tailwind.css", vendor.join("tailwind.css")).unwrap();
+
+        let used = check::check_path(&page).unwrap();
+        let utilities: Vec<&str> = used
+            .findings
+            .iter()
+            .filter_map(|f| f.origin.as_deref())
+            .collect();
+        assert!(utilities.contains(&"sticky"), "got {utilities:?}");
+        assert!(utilities.contains(&"truncate"), "got {utilities:?}");
+
+        // And the location points at the stylesheet, not the page.
+        assert!(
+            used.findings[0]
+                .source
+                .as_deref()
+                .is_some_and(|s| s.ends_with("tailwind.css")),
+            "findings must name the file they came from"
+        );
+
+        let _ = std::fs::remove_file(&page);
     }
 
     #[test]

@@ -12,6 +12,32 @@ pub enum Script {
     Src(String),
 }
 
+/// Resolves `file:` sub-resources — the stylesheets and images a real page
+/// links to — off disk. Kiln is not a browser and deliberately fetches nothing
+/// over the network; any other scheme is dropped.
+struct LocalFiles;
+
+impl blitz_traits::net::NetProvider for LocalFiles {
+    fn fetch(
+        &self,
+        _doc_id: usize,
+        request: blitz_traits::net::Request,
+        handler: Box<dyn blitz_traits::net::NetHandler>,
+    ) {
+        if request.url.scheme() != "file" {
+            eprintln!("kiln does not fetch over the network: {}", request.url);
+            return;
+        }
+        let Ok(path) = request.url.to_file_path() else {
+            return;
+        };
+        match std::fs::read(&path) {
+            Ok(bytes) => handler.bytes(request.url.to_string(), bytes.into()),
+            Err(error) => eprintln!("read {}: {error}", path.display()),
+        }
+    }
+}
+
 fn keyword<T: std::fmt::Debug>(value: &T) -> String {
     let raw = format!("{value:?}");
     let mut result = String::with_capacity(raw.len() + 4);
@@ -285,11 +311,24 @@ pub struct Dom {
 }
 
 impl Dom {
-    pub fn from_html(html: &str, width: u32, height: u32, scale: f32) -> Self {
+    pub fn from_html(
+        html: &str,
+        base: Option<&std::path::Path>,
+        width: u32,
+        height: u32,
+        scale: f32,
+    ) -> Self {
+        let base_url = base
+            .and_then(|path| path.canonicalize().ok())
+            .and_then(|path| url::Url::from_file_path(path).ok())
+            .map(|url| url.to_string());
+
         let document = HtmlDocument::from_html(
             html,
             DocumentConfig {
                 viewport: Some(Viewport::new(width, height, scale, ColorScheme::Light)),
+                base_url,
+                net_provider: Some(std::sync::Arc::new(LocalFiles)),
                 ..Default::default()
             },
         );
@@ -984,6 +1023,7 @@ mod tests {
     fn journal_records_edits_in_order() {
         let dom = Dom::from_html(
             "<html><body><div id=host><span>a</span></div></body></html>",
+            None,
             100,
             100,
             1.0,
@@ -1019,7 +1059,7 @@ mod tests {
 
     #[test]
     fn creating_a_node_records_nothing_until_it_is_attached() {
-        let dom = Dom::from_html("<html><body></body></html>", 100, 100, 1.0);
+        let dom = Dom::from_html("<html><body></body></html>", None, 100, 100, 1.0);
         dom.create_element("div");
         dom.create_text_node("hello");
         assert_eq!(dom.journal().borrow().since(0).count(), 0);
@@ -1029,6 +1069,7 @@ mod tests {
     fn moving_a_node_records_the_detach_first() {
         let dom = Dom::from_html(
             "<html><body><div id=from><i></i></div><div id=to></div></body></html>",
+            None,
             100,
             100,
             1.0,
@@ -1052,7 +1093,7 @@ mod tests {
 
     #[test]
     fn retain_from_drops_consumed_records() {
-        let dom = Dom::from_html("<html><body><p></p></body></html>", 100, 100, 1.0);
+        let dom = Dom::from_html("<html><body><p></p></body></html>", None, 100, 100, 1.0);
         let node = dom.query_selector("p").unwrap();
         dom.set_attribute(node, "a", "1");
         dom.set_attribute(node, "b", "2");

@@ -2247,6 +2247,7 @@ dependencies = [
  "serde_json",
  "tray-icon",
  "tungstenite",
+ "url",
  "winit",
 ]
 

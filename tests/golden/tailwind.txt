@@ -1,0 +1,29 @@
+0 #document
+  0/0 html lang="en" @ 0,0 1000x270 | display:block/flow position:static
+    0/0/0 head @ 0,0 0x0 | display:none/none position:static
+      0/0/0/0 meta charset="utf-8" @ 0,0 0x0 | display:none
+      0/0/0/1 link href="./vendor/tailwind.css" rel="stylesheet" @ 0,0 0x0 | display:none
+    0/0/2 body.bg-slate-900.font-sans.p-8.text-slate-100 @ 0,0 1000x270 | display:block/flow position:static
+      0/0/2/1 div.flex.gap-4.items-center.mb-6 @ 32,32 936x32 | display:block/flex position:static
+        0/0/2/1/1 h1.font-bold.text-2xl.tracking-tight @ 32,32 85x32 | display:block/flow position:static
+          0/0/2/1/1/0 "Tailwind"
+        0/0/2/1/3 span.bg-amber-500.font-medium.px-3.py-1.rounded-full.text-slate-900.text-xs @ 133,36 38x24 | display:block/flow position:static
+          0/0/2/1/3/0 "v4"
+      0/0/2/3 div.gap-4.grid.grid-cols-3 @ 32,88 936x90 | display:block/grid position:static
+        0/0/2/3/1 div.bg-slate-800.border.border-slate-700.p-4.rounded-lg @ 32,88 301.25x90 | display:block/flow position:static
+          0/0/2/3/1/1 p.text-slate-400.text-sm @ 49,105 267.25x20 | display:block/flow position:static
+            0/0/2/3/1/1/0 "Card one"
+          0/0/2/3/1/3 p.font-semibold.mt-2.text-xl @ 49,133 267.25x28 | display:block/flow position:static
+            0/0/2/3/1/3/0 "42"
+        0/0/2/3/3 div.bg-slate-800.border.border-slate-700.p-4.rounded-lg @ 349,88 301.25x90 | display:block/flow position:static
+          0/0/2/3/3/1 p.text-slate-400.text-sm @ 366,105 267.25x20 | display:block/flow position:static
+            0/0/2/3/3/1/0 "Card two"
+          0/0/2/3/3/3 p.font-semibold.mt-2.text-xl @ 366,133 267.25x28 | display:block/flow position:static
+            0/0/2/3/3/3/0 "7"
+        0/0/2/3/5 div.bg-slate-800.border.border-amber-500.p-4.rounded-lg @ 667,88 301.25x90 | display:block/flow position:static
+          0/0/2/3/5/1 p.text-amber-500.text-sm @ 684,105 267.25x20 | display:block/flow position:static
+            0/0/2/3/5/1/0 "Card three"
+          0/0/2/3/5/3 p.font-semibold.mt-2.text-xl @ 684,133 267.25x28 | display:block/flow position:static
+            0/0/2/3/5/3/0 "13"
+      0/0/2/5 button.bg-amber-500.font-semibold.hover:bg-amber-400.mt-6.px-4.py-2.rounded-md.text-slate-900.text-sm @ 32,202 84x36 | display:inline/flex position:static
+        0/0/2/5/0 "A button"
