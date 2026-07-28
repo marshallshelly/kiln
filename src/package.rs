@@ -242,6 +242,10 @@ fn wix_source(options: &Options, payload: &Path) -> Result<String> {
   <Package Name="{name}" Manufacturer="{identifier}" Version="{version}"
            UpgradeCode="{upgrade}" Scope="perUser">
     <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
+    <!-- Without this the payload lands in an external cab1.cab beside the
+         .msi, and the installer is a 32 KB manifest that is useless on its
+         own. -->
+    <MediaTemplate EmbedCab="yes" />
     <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="INSTALLFOLDER" Name="{name}" />
     </StandardDirectory>
@@ -278,7 +282,7 @@ fn collect_wix_files(root: &Path, dir: &Path, id: &mut usize, out: &mut String) 
         let subdir = relative.parent().map(|p| p.to_string_lossy().into_owned());
         let subdir = subdir.filter(|s| !s.is_empty());
         let sub = subdir
-            .map(|s| format!(r#" Subdirectory="{}""#, s.replace('\\', "/")))
+            .map(|s| format!(r#" Subdirectory="{}""#, s.replace('/', "\\")))
             .unwrap_or_default();
         out.push_str(&format!(
             "      <Component Id=\"C{id}\"{sub}>\n        <File Id=\"F{id}\" Source=\"{}\" />\n      </Component>\n",
