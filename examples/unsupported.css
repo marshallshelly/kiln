@@ -11,6 +11,11 @@
   top: 0;
 }
 
+.overlay {
+  position: fixed;
+  inset: 0;
+}
+
 .panel {
   backdrop-filter: blur(12px);
   mix-blend-mode: multiply;

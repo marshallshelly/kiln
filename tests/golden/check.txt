@@ -1,33 +1,36 @@
   examples/unsupported.css
-    declarations         14
-    supported             4  (29%)
+    declarations         16
+    supported             5  (31%)
 
     ×1   .card:has(> .selected)             KC1002  not supported — restructure or use a class
-         examples/unsupported.css:30:1
+         examples/unsupported.css:35:1
     ×1   sidebar                            KC1101  use flexbox or grid
          float: left
          examples/unsupported.css:5:3
     ×1   legacy                             KC1102  use flexbox or grid
          display: table-cell
-         examples/unsupported.css:26:3
+         examples/unsupported.css:31:3
     ×1   legacy                             KC1150  not supported
          writing-mode: vertical-rl
-         examples/unsupported.css:27:3
+         examples/unsupported.css:32:3
     ×1   toolbar                            KC1201  use a fixed header plus scroll padding
          position: sticky
          examples/unsupported.css:10:3
+    ×1   overlay                            KC1202  inside a positioned ancestor it resolves against that, not the viewport
+         position: fixed
+         examples/unsupported.css:15:3
     ×1   title                              KC1210  clips without an ellipsis — truncate the text yourself
          text-overflow: ellipsis
-         examples/unsupported.css:20:3
+         examples/unsupported.css:25:3
     ×1   deep                               KC1320  3D transforms are not supported — use the 2D subset
          transform: translate3d(0, 0, 12px)
-         examples/unsupported.css:35:3
+         examples/unsupported.css:40:3
     ×1   panel                              KC1340  filter: blur() on a sibling layer
          backdrop-filter: blur(12px)
-         examples/unsupported.css:15:3
+         examples/unsupported.css:20:3
     ×1   panel                              KC1341  not supported — composite the colours yourself
          mix-blend-mode: multiply
-         examples/unsupported.css:16:3
+         examples/unsupported.css:21:3
     ×1   @container                         KC1401  not supported — use @media or a resize observer
-         examples/unsupported.css:38:1
+         examples/unsupported.css:43:1
 

@@ -1328,6 +1328,16 @@ mod snapshot_tests {
                 continue;
             }
             let report = check::check_path(&path).unwrap();
+
+            if path.file_name().and_then(|name| name.to_str()) == Some("fixed.html") {
+                assert!(
+                    !report.findings.is_empty(),
+                    "examples/fixed.html exists to demonstrate the position: fixed gap, \
+                     so check must report it — delete this branch with the rule"
+                );
+                continue;
+            }
+
             assert!(
                 report.findings.is_empty(),
                 "{} uses unsupported CSS: {:?}",

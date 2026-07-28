@@ -46,6 +46,10 @@ fn property_rule(property: &str, value: &str) -> Option<(&'static str, &'static 
         "position" if value.trim() == "sticky" => {
             Some(("KC1201", "use a fixed header plus scroll padding"))
         }
+        "position" if value.trim() == "fixed" => Some((
+            "KC1202",
+            "inside a positioned ancestor it resolves against that, not the viewport",
+        )),
         "text-overflow" if value.trim().starts_with("ellipsis") => Some((
             "KC1210",
             "clips without an ellipsis — truncate the text yourself",
