@@ -12,6 +12,155 @@ pub enum Script {
     Src(String),
 }
 
+fn keyword<T: std::fmt::Debug>(value: &T) -> String {
+    let raw = format!("{value:?}");
+    let mut result = String::with_capacity(raw.len() + 4);
+    for (i, ch) in raw.chars().enumerate() {
+        if ch.is_uppercase() {
+            if i > 0 {
+                result.push('-');
+            }
+            result.extend(ch.to_lowercase());
+        } else {
+            result.push(ch);
+        }
+    }
+    result
+}
+
+fn quantise(value: f32) -> String {
+    let snapped = (f64::from(value) * 4.0).round() / 4.0;
+    let snapped = if snapped == 0.0 { 0.0 } else { snapped };
+    format!("{snapped}")
+}
+
+fn collapse(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut spaced = false;
+    for ch in text.chars() {
+        if ch.is_whitespace() {
+            if !out.is_empty() && !spaced {
+                out.push(' ');
+                spaced = true;
+            }
+        } else {
+            out.push(ch);
+            spaced = false;
+        }
+    }
+    out.trim_end().to_string()
+}
+
+fn write_snapshot_node(
+    document: &HtmlDocument,
+    node_id: usize,
+    path: &str,
+    depth: usize,
+    out: &mut String,
+) {
+    use std::fmt::Write;
+
+    let Some(node) = document.get_node(node_id) else {
+        return;
+    };
+    let indent = "  ".repeat(depth);
+
+    match &node.data {
+        NodeData::Comment => return,
+        NodeData::Text(text) => {
+            let opaque = node
+                .parent
+                .and_then(|parent| document.get_node(parent))
+                .and_then(|parent| parent.element_data())
+                .is_some_and(|element| {
+                    matches!(element.name.local.as_ref(), "script" | "style")
+                });
+            let content = collapse(&text.content);
+            if opaque {
+                let _ = writeln!(out, "{indent}{path} <{} chars>", content.len());
+            } else if !content.is_empty() {
+                let _ = writeln!(out, "{indent}{path} {content:?}");
+            }
+            return;
+        }
+        NodeData::Document => {
+            let _ = writeln!(out, "{indent}{path} #document");
+        }
+        NodeData::AnonymousBlock(_) => {
+            let _ = writeln!(out, "{indent}{path} <anonymous>");
+        }
+        NodeData::Element(element) => {
+            let _ = write!(out, "{indent}{path} {}", element.name.local);
+
+            if element.name.ns != ns!(html) {
+                let _ = write!(out, "[ns={}]", element.name.ns);
+            }
+
+            let attribute = |name: &str| {
+                element
+                    .attrs
+                    .iter()
+                    .find(|attr| attr.name.local.as_ref() == name)
+                    .map(|attr| attr.value.to_string())
+            };
+
+            if let Some(id) = attribute("id") {
+                let _ = write!(out, "#{id}");
+            }
+            if let Some(class) = attribute("class") {
+                let mut classes: Vec<&str> = class.split_ascii_whitespace().collect();
+                classes.sort_unstable();
+                for name in classes {
+                    let _ = write!(out, ".{name}");
+                }
+            }
+
+            let mut rest: Vec<(String, String)> = element
+                .attrs
+                .iter()
+                .filter(|attr| !matches!(attr.name.local.as_ref(), "id" | "class"))
+                .map(|attr| (attr.name.local.to_string(), collapse(&attr.value)))
+                .collect();
+            rest.sort();
+            for (name, value) in rest {
+                let _ = write!(out, " {name}={value:?}");
+            }
+
+            let layout = &node.unrounded_layout;
+            let position = node.absolute_position(0.0, 0.0);
+            let _ = write!(
+                out,
+                " @ {},{} {}x{}",
+                quantise(position.x),
+                quantise(position.y),
+                quantise(layout.size.width),
+                quantise(layout.size.height),
+            );
+
+            match node.primary_styles() {
+                Some(style) => {
+                    let display = style.clone_display();
+                    let _ = write!(
+                        out,
+                        " | display:{}/{} position:{}",
+                        keyword(&display.outside()),
+                        keyword(&display.inside()),
+                        keyword(&style.clone_position()),
+                    );
+                }
+                None => {
+                    let _ = write!(out, " | display:none");
+                }
+            }
+            let _ = writeln!(out);
+        }
+    }
+
+    for (index, child) in node.children.iter().enumerate() {
+        write_snapshot_node(document, *child, &format!("{path}/{index}"), depth + 1, out);
+    }
+}
+
 #[derive(Clone)]
 pub struct Dom {
     document: Rc<RefCell<HtmlDocument>>,
@@ -367,22 +516,6 @@ impl Dom {
             px(layout.margin.bottom),
         ];
 
-        fn keyword<T: std::fmt::Debug>(value: &T) -> String {
-            let raw = format!("{value:?}");
-            let mut result = String::with_capacity(raw.len() + 4);
-            for (i, ch) in raw.chars().enumerate() {
-                if ch.is_uppercase() {
-                    if i > 0 {
-                        result.push('-');
-                    }
-                    result.extend(ch.to_lowercase());
-                } else {
-                    result.push(ch);
-                }
-            }
-            result
-        }
-
         if let Some(style) = node.primary_styles() {
             out.push("position".into());
             out.push(keyword(&style.clone_position()));
@@ -398,6 +531,15 @@ impl Dom {
             out.push(keyword(&style.clone_direction()));
         }
 
+        out
+    }
+
+    pub fn snapshot(&self) -> String {
+        self.flush_layout();
+        let document = self.document.borrow();
+        let mut out = String::new();
+        let root = document.root_node().id;
+        write_snapshot_node(&document, root, "0", 0, &mut out);
         out
     }
 

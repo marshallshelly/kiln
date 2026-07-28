@@ -1,0 +1,36 @@
+0 #document
+  0/0 html @ 0,0 1000x535.5 | display:block/flow position:static
+    0/0/0 head @ 0,0 0x0 | display:none/none position:static
+      0/0/0/1 style @ 0,0 0x0 | display:none
+        0/0/0/1/0 <1104 chars>
+    0/0/2 body @ 0,0 1000x535.5 | display:block/flow position:static
+      0/0/2/1 header @ 48,48 904x77.75 | display:block/flex position:static
+        0/0/2/1/1 h1 @ 48,48 80x52.75 | display:block/flow position:static
+          0/0/2/1/1/0 "Kiln"
+        0/0/2/1/3 p @ 144,83 221x18 | display:block/flow position:static
+          0/0/2/1/3/0 "real HTML, real CSS, no browser"
+      0/0/2/3 div.grid @ 48,162 904x150 | display:block/flex position:static
+        0/0/2/3/1 div.card @ 48,162 288x150 | display:block/flow position:static
+          0/0/2/3/1/1 h2 @ 73,187 238x22.75 | display:block/flow position:static
+            0/0/2/3/1/1/0 "Cascade"
+          0/0/2/3/1/3 p @ 73,220 238x67.25 | display:block/flow position:static
+            0/0/2/3/1/3/0 "Custom properties, descendant selectors and the box model resolved by Firefox's own style engine."
+        0/0/2/3/3 div.accent.card @ 356,162 288x150 | display:block/flow position:static
+          0/0/2/3/3/1 h2 @ 381,187 238x22.75 | display:block/flow position:static
+            0/0/2/3/3/1/0 "Layout"
+          0/0/2/3/3/3 p @ 381,220 238x67.25 | display:block/flow position:static
+            0/0/2/3/3/3/0 "Flexbox with gap, flex-grow and border-radius, laid out without a single line of JavaScript."
+        0/0/2/3/5 div.card @ 664,162 288x150 | display:block/flow position:static
+          0/0/2/3/5/1 h2 @ 689,187 238x22.75 | display:block/flow position:static
+            0/0/2/3/5/1/0 "Paint"
+          0/0/2/3/5/3 p @ 689,220 238x67.25 | display:block/flow position:static
+            0/0/2/3/5/3/0 "Gradients, borders and rounded corners rasterized on the GPU straight into an OS window."
+      0/0/2/5 div.swatches @ 48,348 904x84 | display:block/flex position:static
+        0/0/2/5/1 div.swatch style="background: #F5A93C" @ 48,348 84x84 | display:block/flow position:static
+        0/0/2/5/3 div.swatch style="background: #7FC3AC" @ 142,348 84x84 | display:block/flow position:static
+        0/0/2/5/5 div.swatch style="background: #F4E7D3" @ 236,348 84x84 | display:block/flow position:static
+        0/0/2/5/7 div.swatch style="background: linear-gradient(135deg, #F5A93C, #7FC3AC)" @ 330,348 84x84 | display:block/flow position:static
+      0/0/2/7 footer @ 48,472 904x15.5 | display:block/flow position:static
+        0/0/2/7/0 "Rendered by"
+        0/0/2/7/1 code @ 48,472 0x0 | display:inline/flow position:static
+          0/0/2/7/1/0 "kiln render examples/hello.html"

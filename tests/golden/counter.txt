@@ -1,0 +1,19 @@
+0 #document
+  0/0 html @ 0,0 1000x700 | display:block/flow position:static
+    0/0/0 head @ 0,0 0x0 | display:none/none position:static
+      0/0/0/1 style @ 0,0 0x0 | display:none
+        0/0/0/1/0 <743 chars>
+    0/0/2 body @ 0,0 1000x700 | display:block/flex position:static
+      0/0/2/1 h1 @ 428,255 145x18 | display:block/flow position:static
+        0/0/2/1/0 "Kiln counter"
+      0/0/2/3 div.row @ 316,301 368x100.75 | display:block/flex position:static
+        0/0/2/3/1 button#dec.ghost @ 316,313 86x76 | display:block/flex position:static
+          0/0/2/3/1/0 "-"
+        0/0/2/3/3 div#count @ 426,301 150x100.75 | display:block/flow position:static
+          0/0/2/3/3/0 "1"
+        0/0/2/3/5 button#inc @ 600,314 84x74 | display:block/flex position:static
+          0/0/2/3/5/0 "+"
+      0/0/2/5 footer#log @ 479,430 43x15.5 | display:block/flow position:static
+        0/0/2/5/0 "3 clicks"
+      0/0/2/7 script @ 0,0 0x0 | display:none/none position:static
+        0/0/2/7/0 <455 chars>

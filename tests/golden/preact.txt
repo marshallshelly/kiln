@@ -1,0 +1,32 @@
+0 #document
+  0/0 html @ 0,0 1000x700 | display:block/flow position:static
+    0/0/0 head @ 0,0 0x0 | display:none/none position:static
+      0/0/0/1 style @ 0,0 0x0 | display:none
+        0/0/0/1/0 <851 chars>
+    0/0/2 body @ 0,0 1000x700 | display:block/flex position:static
+      0/0/2/1 div#app @ 336,284 328x132.75 | display:block/flow position:static
+        0/0/2/1/0 div @ 336,284 328x132.75 | display:block/flow position:static
+          0/0/2/1/0/0 h1 @ 336,284 328x16.75 | display:block/flow position:static
+            0/0/2/1/0/0/0 "Preact on Kiln"
+          0/0/2/1/0/1 div.row @ 336,301 328x86.5 | display:block/flex position:static
+            0/0/2/1/0/1/0 button#dec.ghost @ 336,310 78x68 | display:block/flex position:static
+              0/0/2/1/0/1/0/0 "-"
+            0/0/2/1/0/1/1 div.n @ 436,301 130x86.5 | display:block/flow position:static
+              0/0/2/1/0/1/1/0 "1"
+            0/0/2/1/0/1/2 button#inc @ 588,311 76x66 | display:block/flex position:static
+              0/0/2/1/0/1/2/0 "+"
+          0/0/2/1/0/2 div.tags @ 336,387 328x29.5 | display:block/flex position:static
+            0/0/2/1/0/2/0 div.on.tag @ 336,387 48x29.5 | display:block/flow position:static
+              0/0/2/1/0/2/0/0 "≥ 1"
+            0/0/2/1/0/2/1 div.tag @ 392,387 48x29.5 | display:block/flow position:static
+              0/0/2/1/0/2/1/0 "≥ 2"
+            0/0/2/1/0/2/2 div.tag @ 448,387 48x29.5 | display:block/flow position:static
+              0/0/2/1/0/2/2/0 "≥ 3"
+            0/0/2/1/0/2/3 div.tag @ 504,387 48x29.5 | display:block/flow position:static
+              0/0/2/1/0/2/3/0 "≥ 4"
+            0/0/2/1/0/2/4 div.tag @ 560,387 48x29.5 | display:block/flow position:static
+              0/0/2/1/0/2/4/0 "≥ 5"
+      0/0/2/3 script src="vendor/preact.umd.js" @ 0,0 0x0 | display:none/none position:static
+      0/0/2/5 script src="vendor/hooks.umd.js" @ 0,0 0x0 | display:none/none position:static
+      0/0/2/7 script @ 0,0 0x0 | display:none/none position:static
+        0/0/2/7/0 <659 chars>

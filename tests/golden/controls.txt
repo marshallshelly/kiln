@@ -1,0 +1,24 @@
+0 #document
+  0/0 html @ 0,0 1000x341.25 | display:block/flow position:static
+    0/0/0 head @ 0,0 0x0 | display:none/none position:static
+      0/0/0/1 style @ 0,0 0x0 | display:none
+        0/0/0/1/0 <668 chars>
+    0/0/2 body @ 0,0 1000x341.25 | display:block/flow position:static
+      0/0/2/1 h1 @ 48,48 904x18 | display:block/flow position:static
+        0/0/2/1/0 "Built-in behaviour"
+      0/0/2/3 p.note @ 48,74 904x15.5 | display:block/flow position:static
+        0/0/2/3/0 "None of this is wired by hand — the engine owns it."
+      0/0/2/5 div.box @ 48,118 904x52 | display:block/flow position:static
+        0/0/2/5/0 "hover me"
+      0/0/2/7 label @ 48,184 904x26 | display:block/flow position:static
+        0/0/2/7/0 input type="checkbox" @ 52,185 20x20 | display:inline/flow-root position:static
+        0/0/2/7/1 "a checkbox that toggles"
+      0/0/2/9 details @ 48,224 904x30 | display:block/flow position:static
+        0/0/2/9/1 summary @ 48,224 904x30 | display:block/flow position:static
+          0/0/2/9/1/0 "a details element"
+        0/0/2/9/3 p @ 48,224 0x0 | display:none/none position:static
+          0/0/2/9/3/0 "…that opens."
+      0/0/2/11 div#out @ 48,278 904x15.5 | display:block/flow position:static
+        0/0/2/11/0 "keydown: none yet"
+      0/0/2/13 script @ 0,0 0x0 | display:none/none position:static
+        0/0/2/13/0 <154 chars>

@@ -198,6 +198,7 @@ fn render(
     clicks: &[String],
     points: &[String],
     hovers: &[String],
+    snapshot: Option<&String>,
 ) -> Result<()> {
     let (dom, script) = load(input)?;
 
@@ -248,6 +249,11 @@ fn render(
         dom.settle(&script);
     }
 
+    if let Some(path) = snapshot {
+        std::fs::write(path, dom.snapshot()).with_context(|| format!("write {path}"))?;
+        println!("{input} -> {path}");
+    }
+
     dom.write_png(output, DEFAULT_WIDTH, DEFAULT_HEIGHT, 1.0)?;
     println!("{input} -> {output} ({DEFAULT_WIDTH}x{DEFAULT_HEIGHT})");
     Ok(())
@@ -258,6 +264,7 @@ fn usage() -> ! {
     eprintln!("  kiln open   <page.html>            open in a native window");
     eprintln!("  kiln render <page.html> [out.png]");
     eprintln!("        [--click <selector>] [--click-at <x,y>] [--hover <selector>]");
+    eprintln!("        [--snapshot <out.txt>]");
     eprintln!("                                     render headless to a PNG");
     std::process::exit(2)
 }
@@ -284,6 +291,7 @@ fn main() -> Result<()> {
             let clicks = flag("--click");
             let points = flag("--click-at");
             let hovers = flag("--hover");
+            let snapshot = flag("--snapshot");
             match positional.first() {
                 Some(input) => render(
                     input,
@@ -291,11 +299,68 @@ fn main() -> Result<()> {
                     &clicks,
                     &points,
                     &hovers,
+                    snapshot.first(),
                 ),
                 None => usage(),
             }
         }
         Some(other) => bail!("unknown command: {other}"),
         None => usage(),
+    }
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+
+    fn golden(name: &str, clicks: &[&str]) {
+        let (dom, script) = load(&format!("examples/{name}.html")).unwrap();
+        dom.settle(&script);
+
+        for selector in clicks {
+            let node = dom.query_selector(selector).unwrap();
+            let (x, y) = dom.center_of(node).unwrap();
+            for event in [
+                events::pointer_button(x, y, MouseButton::Left, ElementState::Pressed),
+                events::pointer_button(x, y, MouseButton::Left, ElementState::Released),
+            ] {
+                for dispatch in dom.drive(event) {
+                    script.dispatch(&dispatch).unwrap();
+                }
+            }
+            dom.settle(&script);
+        }
+
+        let actual = dom.snapshot();
+        let path = format!("tests/golden/{name}.txt");
+
+        if std::env::var_os("KILN_BLESS").is_some() {
+            std::fs::write(&path, &actual).unwrap();
+            return;
+        }
+
+        let expected = std::fs::read_to_string(&path)
+            .unwrap_or_else(|_| panic!("missing {path}; run with KILN_BLESS=1"));
+        assert_eq!(expected, actual, "snapshot changed for {name}");
+    }
+
+    #[test]
+    fn hello() {
+        golden("hello", &[]);
+    }
+
+    #[test]
+    fn counter() {
+        golden("counter", &["#inc", "#inc", "#dec"]);
+    }
+
+    #[test]
+    fn controls() {
+        golden("controls", &[]);
+    }
+
+    #[test]
+    fn preact() {
+        golden("preact", &["#inc"]);
     }
 }
