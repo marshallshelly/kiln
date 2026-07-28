@@ -1,0 +1,52 @@
+0 #document
+  0/0 html @ 0,0 1000x391.75 | display:block/flow position:static
+    0/0/0 head @ 0,0 0x0 | display:none/none position:static
+      0/0/0/1 meta charset="utf-8" @ 0,0 0x0 | display:none
+      0/0/0/3 title @ 0,0 0x0 | display:none
+        0/0/0/3/0 "Kiln — text"
+      0/0/0/5 style @ 0,0 0x0 | display:none
+        0/0/0/5/0 <603 chars>
+    0/0/2 body @ 0,0 1000x391.75 | display:block/flow position:static
+      0/0/2/1 h1 @ 24,24 952x15.5 | display:block/flow position:static
+        0/0/2/1/0 "Text"
+      0/0/2/3 div.grid @ 24,58 952x310 | display:block/flex position:static
+        0/0/2/3/1 figure @ 24,58 306x92.75 | display:block/flow position:static
+          0/0/2/3/1/1 figcaption @ 37,69 280x12 | display:block/flow position:static
+            0/0/2/3/1/1/0 "latin — ligatures, kerning"
+          0/0/2/3/1/3 p @ 37,87 280x26.25 | display:block/flow position:static
+            0/0/2/3/1/3/0 "Waffle office affix — fi fl ffi VA To"
+        0/0/2/3/3 figure @ 346,58 306x92.75 | display:block/flow position:static
+          0/0/2/3/3/1 figcaption @ 359,69 280x12 | display:block/flow position:static
+            0/0/2/3/3/1/0 "arabic — rtl, cursive joining"
+          0/0/2/3/3/3 p @ 359,87 280x52.75 | display:block/flow position:static
+            0/0/2/3/3/3/0 "مرحبا بالعالم. هذا نص عربي طويل بما يكفي ليلتف على سطرين."
+        0/0/2/3/5 figure @ 668,58 306x92.75 | display:block/flow position:static
+          0/0/2/3/5/1 figcaption @ 681,69 280x12 | display:block/flow position:static
+            0/0/2/3/5/1/0 "hebrew — rtl"
+          0/0/2/3/5/3 p @ 681,87 280x52.75 | display:block/flow position:static
+            0/0/2/3/5/3/0 "שלום עולם. זהו טקסט בעברית שנועד להתפרס על פני שתי שורות."
+        0/0/2/3/7 figure @ 24,167 306x119 | display:block/flow position:static
+          0/0/2/3/7/1 figcaption @ 37,178 280x12 | display:block/flow position:static
+            0/0/2/3/7/1/0 "devanagari — conjuncts, reordering"
+          0/0/2/3/7/3 p @ 37,196 280x52.75 | display:block/flow position:static
+            0/0/2/3/7/3/0 "नमस\u{94d}त\u{947} द\u{941}निया। यह हिन\u{94d}दी पाठ ह\u{948} जो दो प\u{902}क\u{94d}तियो\u{902} म\u{947}\u{902} लिपट\u{947}गा।"
+        0/0/2/3/9 figure @ 346,167 306x119 | display:block/flow position:static
+          0/0/2/3/9/1 figcaption @ 359,178 280x12 | display:block/flow position:static
+            0/0/2/3/9/1/0 "thai — dictionary line breaking"
+          0/0/2/3/9/3 p @ 359,196 280x52.75 | display:block/flow position:static
+            0/0/2/3/9/3/0 "ภาษาไทยไม\u{e48}ม\u{e35}การเว\u{e49}นวรรคระหว\u{e48}างคำจ\u{e36}งต\u{e49}องใช\u{e49}พจนาน\u{e38}กรมในการต\u{e31}ดบรรท\u{e31}ด"
+        0/0/2/3/11 figure @ 668,167 306x119 | display:block/flow position:static
+          0/0/2/3/11/1 figcaption @ 681,178 280x12 | display:block/flow position:static
+            0/0/2/3/11/1/0 "japanese — per-character breaking"
+          0/0/2/3/11/3 p @ 681,196 280x79 | display:block/flow position:static
+            0/0/2/3/11/3/0 "日本語のテキストは単語の区切りがないので、行の折り返しには辞書が必要です。"
+        0/0/2/3/13 figure @ 24,302 306x66.25 | display:block/flow position:static
+          0/0/2/3/13/1 figcaption @ 37,313 280x12 | display:block/flow position:static
+            0/0/2/3/13/1/0 "bidi — arabic inside latin"
+          0/0/2/3/13/3 p @ 37,331 280x26.25 | display:block/flow position:static
+            0/0/2/3/13/3/0 "Total: 42 ريال (paid in full)"
+        0/0/2/3/15 figure @ 346,302 306x66.25 | display:block/flow position:static
+          0/0/2/3/15/1 figcaption @ 359,313 280x12 | display:block/flow position:static
+            0/0/2/3/15/1/0 "emoji — colour, zwj sequences"
+          0/0/2/3/15/3 p @ 359,331 280x26.25 | display:block/flow position:static
+            0/0/2/3/15/3/0 "👋 🏳\u{fe0f}\u{200d}🌈 👨\u{200d}👩\u{200d}👧\u{200d}👦 🇯🇵 🎨"

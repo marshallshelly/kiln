@@ -378,4 +378,9 @@ mod snapshot_tests {
     fn fixed() {
         golden("fixed", &[]);
     }
+
+    #[test]
+    fn text() {
+        golden("text", &[]);
+    }
 }

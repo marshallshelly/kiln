@@ -1584,6 +1584,7 @@ dependencies = [
  "blitz-paint",
  "blitz-traits",
  "keyboard-types",
+ "parley",
  "png 0.18.1",
  "rquickjs",
  "winit",

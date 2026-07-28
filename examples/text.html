@@ -1,0 +1,94 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Kiln — text</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #0b1226;
+        color: #f4e7d3;
+        font-family: Helvetica, Arial, sans-serif;
+      }
+      h1 {
+        margin: 0 0 18px;
+        font-size: 13px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #8fa0c4;
+      }
+      .grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+      figure {
+        width: 280px;
+        margin: 0;
+        padding: 10px 12px;
+        border: 1px solid #22315c;
+        border-radius: 8px;
+        background: #131e3d;
+      }
+      figcaption {
+        margin-bottom: 6px;
+        font-family: Menlo, monospace;
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #6c7a9c;
+      }
+      p {
+        margin: 0;
+        font-size: 17px;
+        line-height: 1.55;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Text</h1>
+
+    <div class="grid">
+      <figure>
+        <figcaption>latin — ligatures, kerning</figcaption>
+        <p>Waffle office affix — fi fl ffi VA To</p>
+      </figure>
+
+      <figure>
+        <figcaption>arabic — rtl, cursive joining</figcaption>
+        <p>مرحبا بالعالم. هذا نص عربي طويل بما يكفي ليلتف على سطرين.</p>
+      </figure>
+
+      <figure>
+        <figcaption>hebrew — rtl</figcaption>
+        <p>שלום עולם. זהו טקסט בעברית שנועד להתפרס על פני שתי שורות.</p>
+      </figure>
+
+      <figure>
+        <figcaption>devanagari — conjuncts, reordering</figcaption>
+        <p>नमस्ते दुनिया। यह हिन्दी पाठ है जो दो पंक्तियों में लिपटेगा।</p>
+      </figure>
+
+      <figure>
+        <figcaption>thai — dictionary line breaking</figcaption>
+        <p>ภาษาไทยไม่มีการเว้นวรรคระหว่างคำจึงต้องใช้พจนานุกรมในการตัดบรรทัด</p>
+      </figure>
+
+      <figure>
+        <figcaption>japanese — per-character breaking</figcaption>
+        <p>日本語のテキストは単語の区切りがないので、行の折り返しには辞書が必要です。</p>
+      </figure>
+
+      <figure>
+        <figcaption>bidi — arabic inside latin</figcaption>
+        <p>Total: 42 ريال (paid in full)</p>
+      </figure>
+
+      <figure>
+        <figcaption>emoji — colour, zwj sequences</figcaption>
+        <p>👋 🏳️‍🌈 👨‍👩‍👧‍👦 🇯🇵 🎨</p>
+      </figure>
+    </div>
+  </body>
+</html>

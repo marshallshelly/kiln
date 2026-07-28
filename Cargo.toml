@@ -13,6 +13,7 @@ blitz-html = "0.3.0-beta.1"
 blitz-paint = "0.3.0-beta.1"
 blitz-traits = "0.3.0-beta.1"
 keyboard-types = "0.7"
+parley = { version = "0.10", features = ["complex-scripts"] }
 png = "0.18.1"
 rquickjs = { version = "0.12.2", features = ["macro", "futures"] }
 winit = "0.30.13"

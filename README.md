@@ -10,14 +10,14 @@
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/marshallshelly/kiln?style=flat-square&color=0B1226&label=stars" alt="Stars">
-  <img src="https://img.shields.io/badge/status-M3%20%2B%20Preact--F5A93C?style=flat-square" alt="Status: M3 plus Preact">
+  <img src="https://img.shields.io/badge/status-M2%2C%20M3%20%2B%20Preact--F5A93C?style=flat-square" alt="Status: M2, M3 plus Preact">
   <img src="https://img.shields.io/badge/built%20with-Rust-0B1226?style=flat-square" alt="Built with Rust">
   <img src="https://img.shields.io/badge/license-Apache--2.0-0B1226?style=flat-square" alt="Apache-2.0 license">
 </p>
 
 <p align="center">
   <strong>Native desktop apps from real HTML, CSS, and TypeScript &middot; rendered by our own engine &middot; no Chromium, no WebView</strong><br>
-  <sub><strong>This is early.</strong> HTML and CSS render, and JavaScript can drive the DOM — a counter app works. The CSS surface is partial and most of the toolkit (text depth, scrolling, menus, packaging) is not built. Read <a href="#status">Status</a> before you get excited.</sub>
+  <sub><strong>This is early.</strong> HTML and CSS render, and JavaScript can drive the DOM — a counter app works. The CSS surface is partial and most of the toolkit (scrolling, menus, packaging) is not built. Read <a href="#status">Status</a> before you get excited.</sub>
 </p>
 
 ---
@@ -40,9 +40,9 @@ Honesty is the product, so here is the unflattering version.
 |---|---|---|
 | **M0** | ✅ | winit window + wgpu, one rounded rectangle from a hardcoded struct |
 | **M1** | ✅ | HTML + CSS renders — cascade, flexbox, gradients, text — in a window and headless |
+| **M2** | ✅ | Parley text: ligatures, RTL, Devanagari, CJK, Thai line breaking, bidi, colour emoji |
 | **M3** | ✅ | QuickJS + DOM bridge + events — **a counter app works**; hover, checkbox, details and focus come from the engine |
-| M2 | next | Parley text depth: font fallback, non-Latin scripts, richer inline layout |
-| M4 | | restyle invalidation, transitions, keyframes, custom properties |
+| M4 | next | restyle invalidation, transitions, keyframes, custom properties |
 | M5 | | scrolling with native physics, focus, keyboard nav, text input with IME |
 | M6 | | menus, tray, dialogs, clipboard, notifications, accessibility tree |
 | M7 | | `kiln init/dev/build/check`, hot reload, DevTools over CDP |
@@ -243,6 +243,32 @@ This one cannot be fixed from Kiln's side. The correct fix is to hoist fixed nod
 | same target, `rootMargin: "100px"` | `true`, ratio `0.50` |
 
 The honest limit: until scrolling lands, the answer can only ever be the initial static one. That is still what lazy-loading and reveal-on-view libraries ask for, and it is a real measurement rather than a stub returning zero.
+
+## Non-Latin text
+
+The subsystem that kills projects like this one. Vercel's Native SDK is honest about its own: *"no hinting, no kerning, no shaping, no CFF"* — which means no Arabic, no Devanagari, no ligatures.
+
+Kiln doesn't have that problem, because Kiln didn't write a text stack. Parley does the shaping, bidi, line breaking and font fallback:
+
+<p align="center">
+  <img src="assets/text.png" width="720" alt="Eight panels showing Latin ligatures, Arabic and Hebrew right-to-left text wrapping across two lines, Devanagari with conjuncts, Thai, Japanese, a bidirectional line mixing Arabic into English, and colour emoji.">
+</p>
+
+```bash
+cargo run -- render examples/text.html out.png
+```
+
+Arabic and Hebrew lay out right-to-left with correct cursive joining. Devanagari forms conjuncts and reorders matras. A bidi run embeds Arabic inside an English sentence at the right position. Emoji render in colour, including ZWJ sequences like 👨‍👩‍👧‍👦 that are four codepoints joined into one glyph.
+
+One thing needed fixing, and the fix is the whole thesis in miniature. Thai, Lao, Khmer and Burmese have no spaces between words, so they need dictionary segmentation to know where a line may break — without it the text simply ran out of its container. Parley depends on `icu_segmenter` with default features off and calls `new_for_non_complex_scripts` unless told otherwise. The repair was one line:
+
+```toml
+parley = { version = "0.10", features = ["complex-scripts"] }
+```
+
+That costs 3.7 MB of dictionary data — a release binary goes from 25.1 MB to 28.8 MB. Worth paying, and stated rather than buried.
+
+Still missing: **`text-overflow: ellipsis` clips without drawing the ellipsis.** It isn't implemented in Parley, so it isn't a flag — it needs truncation support upstream first.
 
 ## Tests read text, not pixels
 
