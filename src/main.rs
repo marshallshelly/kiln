@@ -363,4 +363,9 @@ mod snapshot_tests {
     fn preact() {
         golden("preact", &["#inc"]);
     }
+
+    #[test]
+    fn observers() {
+        golden("observers", &[]);
+    }
 }

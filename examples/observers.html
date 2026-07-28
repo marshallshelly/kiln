@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Kiln observers</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #0b1226;
+        color: #f4e7d3;
+        font-family: Helvetica, Arial, sans-serif;
+      }
+      h1 {
+        margin: 0 0 20px;
+        font-size: 13px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #8fa0c4;
+      }
+      .card {
+        width: 260px;
+        height: 90px;
+        margin-bottom: 16px;
+        padding: 12px;
+        border-radius: 10px;
+        background: #131e3d;
+        border: 1px solid #22315c;
+        font-size: 13px;
+      }
+      .card.seen {
+        border-color: #7fc3ac;
+      }
+      #trailing {
+        position: absolute;
+        top: 660px;
+        left: 24px;
+      }
+      #offstage {
+        position: absolute;
+        top: 1200px;
+        left: 24px;
+      }
+      output {
+        display: block;
+        margin-top: 8px;
+        font-family: Menlo, monospace;
+        font-size: 12px;
+        color: #f5a93c;
+      }
+      footer {
+        margin-top: 20px;
+        font-family: Menlo, monospace;
+        font-size: 12px;
+        color: #6c7a9c;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Observers</h1>
+
+    <section class="card" id="onstage">fully in view<output></output></section>
+    <section class="card" id="trailing">crosses the bottom edge<output></output></section>
+    <section class="card" id="offstage">far below the fold<output></output></section>
+
+    <footer id="mutations">mutations: 0</footer>
+
+    <script>
+      const cards = document.querySelectorAll(".card");
+
+      const mutations = document.querySelector("#mutations");
+      let counted = 0;
+      new MutationObserver((records) => {
+        counted += records.length;
+        mutations.textContent = "mutations: " + counted;
+      }).observe(document.querySelector("body"), {
+        childList: true,
+        attributes: true,
+        characterData: true,
+        subtree: true,
+      });
+
+      const watcher = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            entry.target.querySelector("output").textContent =
+              (entry.isIntersecting ? "visible " : "hidden ") +
+              entry.intersectionRatio.toFixed(2);
+            if (entry.isIntersecting) entry.target.classList.add("seen");
+          }
+        },
+        { threshold: [0, 0.5, 1] },
+      );
+
+      for (const card of cards) watcher.observe(card);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,27 @@
+0 #document
+  0/0 html @ 0,0 1000x234 | display:block/flow position:static
+    0/0/0 head @ 0,0 0x0 | display:none/none position:static
+      0/0/0/1 meta charset="utf-8" @ 0,0 0x0 | display:none
+      0/0/0/3 title @ 0,0 0x0 | display:none
+        0/0/0/3/0 "Kiln observers"
+      0/0/0/5 style @ 0,0 0x0 | display:none
+        0/0/0/5/0 <739 chars>
+    0/0/2 body @ 0,0 1000x234 | display:block/flow position:static
+      0/0/2/1 h1 @ 24,24 952x15.5 | display:block/flow position:static
+        0/0/2/1/0 "Observers"
+      0/0/2/3 section#onstage.card.seen @ 24,60 286x116 | display:block/flow position:static
+        0/0/2/3/0 "fully in view"
+        0/0/2/3/1 output @ 37,97 260x14.5 | display:block/flow position:static
+          0/0/2/3/1/0 "visible 1.00"
+      0/0/2/5 section#trailing.card.seen @ 24,660 286x116 | display:block/flow position:absolute
+        0/0/2/5/0 "crosses the bottom edge"
+        0/0/2/5/1 output @ 37,697 260x14.5 | display:block/flow position:static
+          0/0/2/5/1/0 "visible 0.34"
+      0/0/2/7 section#offstage.card @ 24,1200 286x116 | display:block/flow position:absolute
+        0/0/2/7/0 "far below the fold"
+        0/0/2/7/1 output @ 37,1237 260x14.5 | display:block/flow position:static
+          0/0/2/7/1/0 "hidden 0.00"
+      0/0/2/9 footer#mutations @ 24,196 952x14.5 | display:block/flow position:static
+        0/0/2/9/0 "mutations: 68"
+      0/0/2/11 script @ 0,0 0x0 | display:none/none position:static
+        0/0/2/11/0 <726 chars>

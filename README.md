@@ -218,7 +218,17 @@ Nothing in the page says where these should go. Floating-ui measures the trigger
 
 Getting the last one honest took `clientLeft`/`clientTop`, which floating-ui adds to every offset — unimplemented, they made `number + undefined` and every popup landed at `translate(NaNpx, NaNpx)`.
 
-Still missing: `getBoundingClientRect` ignores transforms, so a positioned popup reports its untransformed box. `IntersectionObserver` is an inert stub.
+Still missing: `getBoundingClientRect` ignores transforms, so a positioned popup reports its untransformed box.
+
+`IntersectionObserver` needed no engine work at all — it is a hundred lines of prelude over the rect and viewport calls that already existed, running on the same layout pass as `ResizeObserver`. `root`, `rootMargin` in px and %, and `threshold` arrays all behave:
+
+| Target | Result |
+| --- | --- |
+| fully on screen | `isIntersecting: true`, ratio `1.00` |
+| 50px past the bottom edge | `false`, ratio `0.00` |
+| same target, `rootMargin: "100px"` | `true`, ratio `0.50` |
+
+The honest limit: until scrolling lands, the answer can only ever be the initial static one. That is still what lazy-loading and reveal-on-view libraries ask for, and it is a real measurement rather than a stub returning zero.
 
 ## Tests read text, not pixels
 
@@ -246,6 +256,7 @@ cargo test
 | Reader | Status |
 | --- | --- |
 | `MutationObserver` | works — subtree scoping, `attributeFilter`, old values, `takeRecords`, `disconnect` |
+| Goldens | `examples/observers.html` writes observer results back into the DOM, so the text snapshot records them |
 | Restyle invalidation | the same records are the dirty-set the cascade wants |
 | HMR, DevTools, record/replay | later readers of the same stream |
 

@@ -458,8 +458,140 @@ class ResizeObserver {
 }
 globalThis.ResizeObserver = ResizeObserver;
 
-globalThis.__runObservers = () => {
+let __intersectionSeq = 0;
+const __intersectionObservers = new Map();
+
+const __parseRootMargin = (raw) => {
+  const [top, right = top, bottom = top, left = right] =
+    String(raw == null ? "0px" : raw).trim().split(/\s+/);
+  return [top, right, bottom, left].map((side) => ({
+    amount: parseFloat(side) || 0,
+    percent: String(side).includes("%"),
+  }));
+};
+
+const __normaliseThresholds = (raw) => {
+  const list = (Array.isArray(raw) ? raw : [raw == null ? 0 : raw])
+    .map(Number)
+    .filter((value) => value >= 0 && value <= 1);
+  return (list.length ? list : [0]).sort((a, b) => a - b);
+};
+
+const __rootBounds = (rootId, margin) => {
+  let base;
+  if (rootId == null) {
+    const viewport = __kiln.viewportSize();
+    base = { x: 0, y: 0, width: viewport[0], height: viewport[1] };
+  } else {
+    const r = __kiln.rect(rootId);
+    if (!r) return null;
+    base = { x: r[0], y: r[1], width: r[2], height: r[3] };
+  }
+  const resolve = (side, extent) => side.percent ? (side.amount / 100) * extent : side.amount;
+  const top = resolve(margin[0], base.height);
+  const right = resolve(margin[1], base.width);
+  const bottom = resolve(margin[2], base.height);
+  const left = resolve(margin[3], base.width);
+  return {
+    x: base.x - left,
+    y: base.y - top,
+    width: base.width + left + right,
+    height: base.height + top + bottom,
+  };
+};
+
+const __overlap = (a, b) => {
+  const left = Math.max(a.x, b.x);
+  const top = Math.max(a.y, b.y);
+  const right = Math.min(a.x + a.width, b.x + b.width);
+  const bottom = Math.min(a.y + a.height, b.y + b.height);
+  if (right <= left || bottom <= top) return null;
+  return { x: left, y: top, width: right - left, height: bottom - top };
+};
+
+const __thresholdIndex = (thresholds, ratio, intersecting) => {
+  if (!intersecting) return 0;
+  let index = 0;
+  while (index < thresholds.length && ratio >= thresholds[index]) index += 1;
+  return index;
+};
+
+class IntersectionObserver {
+  constructor(callback, options) {
+    const o = options || {};
+    this.__id = ++__intersectionSeq;
+    this.root = o.root || null;
+    this.rootMargin = o.rootMargin == null ? "0px" : String(o.rootMargin);
+    this.thresholds = __normaliseThresholds(o.threshold);
+    this.__queue = [];
+    __intersectionObservers.set(this.__id, {
+      callback,
+      observer: this,
+      margin: __parseRootMargin(this.rootMargin),
+      rootId: this.root ? this.root.__id : null,
+      targets: new Map(),
+    });
+  }
+  observe(target) {
+    const entry = __intersectionObservers.get(this.__id);
+    if (entry && target) entry.targets.set(target.__id, -1);
+  }
+  unobserve(target) {
+    const entry = __intersectionObservers.get(this.__id);
+    if (entry && target) entry.targets.delete(target.__id);
+  }
+  disconnect() {
+    const entry = __intersectionObservers.get(this.__id);
+    if (entry) entry.targets.clear();
+    this.__queue = [];
+  }
+  takeRecords() { const queued = this.__queue; this.__queue = []; return queued; }
+}
+globalThis.IntersectionObserver = IntersectionObserver;
+
+globalThis.__runIntersections = () => {
   let delivered = 0;
+  for (const entry of [...__intersectionObservers.values()]) {
+    const root = __rootBounds(entry.rootId, entry.margin);
+    if (!root) continue;
+    const entries = [];
+
+    for (const [nodeId, previous] of entry.targets) {
+      const r = __kiln.rect(nodeId);
+      if (!r) continue;
+      const box = { x: r[0], y: r[1], width: r[2], height: r[3] };
+      const area = box.width * box.height;
+      const overlap = __overlap(box, root);
+      const ratio = overlap && area > 0 ? (overlap.width * overlap.height) / area : 0;
+      const intersecting = overlap !== null;
+      const index = __thresholdIndex(entry.observer.thresholds, ratio, intersecting);
+      if (index === previous) continue;
+
+      entry.targets.set(nodeId, index);
+      entries.push({
+        target: __wrap(nodeId),
+        time: Date.now(),
+        isIntersecting: intersecting,
+        intersectionRatio: ratio,
+        boundingClientRect: __rect(box.x, box.y, box.width, box.height),
+        intersectionRect: overlap
+          ? __rect(overlap.x, overlap.y, overlap.width, overlap.height)
+          : __emptyRect(),
+        rootBounds: __rect(root.x, root.y, root.width, root.height),
+      });
+    }
+
+    if (entries.length) {
+      delivered += entries.length;
+      entry.observer.__queue = [];
+      entry.callback(entries, entry.observer);
+    }
+  }
+  return delivered;
+};
+
+globalThis.__runObservers = () => {
+  let delivered = __runIntersections();
   for (const observer of [...__observers.values()]) {
     const entries = [];
     for (const [nodeId, previous] of observer.targets) {
@@ -582,11 +714,6 @@ globalThis.__deliverMutations = () => {
   return delivered;
 };
 
-class __InertObserver {
-  constructor(callback) { this.__callback = callback; }
-  observe() {} unobserve() {} disconnect() {} takeRecords() { return []; }
-}
-globalThis.IntersectionObserver = __InertObserver;
 
 globalThis.__dispatch = (path, type, detail) => {
   let fired = false;
