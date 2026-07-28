@@ -3,6 +3,7 @@ mod devtools;
 mod dom;
 mod events;
 mod native;
+mod package;
 mod script;
 
 use std::sync::Arc;
@@ -608,6 +609,42 @@ fn build(input: &str, out: &str) -> Result<()> {
     Ok(())
 }
 
+fn package(input: &str, args: &[String]) -> Result<()> {
+    let entry = std::path::Path::new(input);
+    let flag = |name: &str| -> Option<String> {
+        args.windows(2)
+            .find(|pair| pair[0] == name)
+            .map(|pair| pair[1].clone())
+    };
+
+    let default_name = entry
+        .parent()
+        .and_then(|parent| parent.file_name())
+        .map(|name| name.to_string_lossy().into_owned())
+        .filter(|name| !name.is_empty() && name != ".")
+        .unwrap_or_else(|| "Kiln App".to_string());
+
+    let name = flag("--name").unwrap_or(default_name);
+    let options = package::Options {
+        identifier: flag("--identifier")
+            .unwrap_or_else(|| format!("app.kiln.{}", name.to_lowercase().replace(' ', "-"))),
+        version: flag("--version").unwrap_or_else(|| "0.1.0".to_string()),
+        out: flag("--out").map_or_else(|| std::path::PathBuf::from("dist"), Into::into),
+        sign: flag("--sign"),
+        dmg: args.iter().any(|arg| arg == "--dmg"),
+        notarize: flag("--notarize"),
+        name,
+    };
+
+    let report = check::check_path(entry)?;
+    print!("\n{}", check::render_report(entry, &report));
+
+    let (dom, _script, _native) = load(input)?;
+    let app = package::bundle(entry, &dom, &options)?;
+    println!("  {}\n", app.display());
+    Ok(())
+}
+
 fn check(inputs: &[String]) -> Result<()> {
     let mut total = check::Report::default();
     let mut out = String::from("\n");
@@ -632,6 +669,15 @@ fn check(inputs: &[String]) -> Result<()> {
     Ok(())
 }
 
+/// When the executable sits in a `.app`, the page lives beside it in
+/// `Contents/Resources/app`. Running the bundle with no arguments opens it.
+fn bundled_entry() -> Option<std::path::PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let resources = exe.parent()?.parent()?.join("Resources").join("app");
+    let entry = resources.join("index.html");
+    entry.exists().then_some(entry)
+}
+
 fn inspect_port(args: &[String]) -> Option<u16> {
     let index = args.iter().position(|arg| arg == "--inspect")?;
     Some(
@@ -650,6 +696,9 @@ fn usage() -> ! {
     eprintln!("  kiln check  <page.html|style.css>...");
     eprintln!("                                     report unsupported CSS");
     eprintln!("  kiln build  <page.html> [outdir]   bundle the app and its scripts");
+    eprintln!("  kiln package <page.html>           build a .app");
+    eprintln!("        [--name N] [--identifier ID] [--version V] [--out DIR]");
+    eprintln!("        [--sign IDENTITY] [--dmg] [--notarize PROFILE]");
     eprintln!("  kiln render <page.html> [out.png]  render headless to a PNG");
     eprintln!("        [--click <selector>] [--click-at <x,y>] [--hover <selector>]");
     eprintln!("        [--type <text>] [--press <key>] [--scroll <selector,dx,dy>]");
@@ -710,6 +759,10 @@ fn main() -> Result<()> {
             Some(input) => build(input, args.get(2).map_or("dist", |s| s.as_str())),
             None => usage(),
         },
+        Some("package") => match args.get(1) {
+            Some(input) => package(input, &args[1..]),
+            None => usage(),
+        },
         Some("check") => {
             let inputs: Vec<String> = args[1..].to_vec();
             if inputs.is_empty() {
@@ -718,7 +771,10 @@ fn main() -> Result<()> {
             check(&inputs)
         }
         Some(other) => bail!("unknown command: {other}"),
-        None => usage(),
+        None => match bundled_entry() {
+            Some(entry) => open(&entry.to_string_lossy(), false, None),
+            None => usage(),
+        },
     }
 }
 
@@ -916,6 +972,50 @@ mod snapshot_tests {
     fn filetime_set(path: &std::path::Path, when: std::time::SystemTime) {
         let file = std::fs::OpenOptions::new().write(true).open(path).unwrap();
         file.set_modified(when).unwrap();
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn package_produces_a_launchable_bundle() {
+        let out = std::env::temp_dir().join("kiln-package-test");
+        let _ = std::fs::remove_dir_all(&out);
+
+        let entry = std::path::Path::new("examples/tailwind.html");
+        let (dom, _script, _native) = load(entry.to_str().unwrap()).unwrap();
+
+        let options = package::Options {
+            name: "Packaged".to_string(),
+            identifier: "app.kiln.packaged".to_string(),
+            version: "1.2.3".to_string(),
+            out: out.clone(),
+            sign: None,
+            dmg: false,
+            notarize: None,
+        };
+        let app = package::bundle(entry, &dom, &options).unwrap();
+
+        // The layout macOS requires to treat this as an application.
+        assert!(app.join("Contents/Info.plist").is_file());
+        assert!(app.join("Contents/PkgInfo").is_file());
+        assert!(app.join("Contents/MacOS/Packaged").is_file());
+
+        // The entry is renamed, and referenced files keep their relative paths
+        // so the HTML's own links still resolve inside the bundle.
+        assert!(app.join("Contents/Resources/app/index.html").is_file());
+        assert!(
+            app.join("Contents/Resources/app/vendor/tailwind.css").is_file(),
+            "a linked stylesheet must travel with the app"
+        );
+
+        let plist = std::fs::read_to_string(app.join("Contents/Info.plist")).unwrap();
+        assert!(plist.contains("<string>app.kiln.packaged</string>"));
+        assert!(plist.contains("<string>1.2.3</string>"));
+        assert!(
+            plist.contains("<key>CFBundleExecutable</key>      <string>Packaged</string>"),
+            "the executable name must match the file in MacOS/"
+        );
+
+        let _ = std::fs::remove_dir_all(&out);
     }
 
     #[test]

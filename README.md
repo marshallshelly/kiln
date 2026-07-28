@@ -47,8 +47,8 @@ Honesty is the product, so here is the unflattering version.
 | **M6** | ✅ | accessibility tree, native menus, tray, clipboard, dialogs, notifications |
 | **M7** | ✅ | `init`, `dev` with reload on save, `check`, `build`, DevTools over CDP |
 | **M8** | ✅ | **Preact runs unmodified. Tailwind works.** |
-| M9 | next | packaging: `.app`/`.dmg`/`.msi`/`.deb`, signing, notarization |
-| M10 | | automation server, record/replay, deterministic screenshots |
+| M9 | ◐ | `.app` and `.dmg` work on macOS; signing and notarization untested; `.msi`/`.deb` and the updater to do |
+| M10 | next | automation server, record/replay, deterministic screenshots |
 | M11 | | static TypeScript compilation tier |
 
 M3 is when this becomes demonstrable. M8 is when you could port something real.
@@ -445,6 +445,20 @@ cargo test
 Parent and siblings are captured *before* each edit, because after a removal there is no walking up from an orphaned handle. And `document.mutate()` is allowed in exactly one file — a test fails the build otherwise, since one missed append would break every reader at once, silently.
 
 The headless path is not a debugging convenience. It's the deterministic reference renderer — what makes golden-image tests, CI on a machine with no display, and automated verification possible. Both paths share one document and one paint call, so they cannot drift.
+
+## Shipping an app
+
+```console
+$ kiln package app/index.html --name "My App" --dmg
+  declarations         26
+  supported            26  (100%)
+  dist/My App.dmg
+  dist/My App.app
+```
+
+The bundle carries the Kiln runtime, your page renamed to `index.html`, and every local file it references with paths intact — so a `<link>` that worked in development still resolves inside the bundle. Double-clicking it opens your app; the runtime locates its own page relative to the executable.
+
+`--sign` and `--notarize` shell out to Apple's own `codesign` and `notarytool`. Both are implemented and **neither has been run end to end here**, because that needs a Developer ID certificate. `.msi` and `.deb` are not started.
 
 ## Building
 

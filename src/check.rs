@@ -355,7 +355,7 @@ fn classes_used(html: &str) -> std::collections::HashSet<String> {
 }
 
 /// Local stylesheets a page links to. Generated CSS usually lives in one.
-fn linked_stylesheets(html: &str, base: &Path) -> Vec<std::path::PathBuf> {
+pub fn linked_stylesheets(html: &str, base: &Path) -> Vec<std::path::PathBuf> {
     let mut out = Vec::new();
     let mut rest = html;
 
