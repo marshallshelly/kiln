@@ -5,12 +5,15 @@ use std::sync::Arc;
 use atomic_refcell::AtomicRefCell;
 use blitz_dom::{Document, EventHandler};
 use blitz_traits::events::{
-    BlitzKeyEvent, BlitzPointerEvent, BlitzPointerId, DomEvent, DomEventData, EventState, KeyState,
-    MouseEventButton, MouseEventButtons, Point, PointerCoords, PointerDetails, UiEvent,
+    BlitzImeEvent, BlitzKeyEvent, BlitzPointerEvent, BlitzPointerId, BlitzWheelDelta,
+    BlitzWheelEvent, DomEvent, DomEventData, EventState, KeyState, MouseEventButton,
+    MouseEventButtons, Point, PointerCoords, PointerDetails, UiEvent,
 };
 use keyboard_types::{Code, Key, Location, Modifiers};
-use winit::event::{ElementState, MouseButton};
+use winit::event::{ElementState, MouseButton, MouseScrollDelta};
 use winit::keyboard::{KeyCode, PhysicalKey};
+
+const LINE_HEIGHT: f64 = 20.0;
 
 pub struct Dispatch {
     pub chain: Vec<usize>,
@@ -39,6 +42,7 @@ impl EventHandler for Collector {
             DomEventData::MouseDown(_) => "mousedown",
             DomEventData::MouseUp(_) => "mouseup",
             DomEventData::MouseMove(_) => "mousemove",
+            DomEventData::Wheel(_) => "wheel",
             DomEventData::KeyDown(_) => "keydown",
             DomEventData::KeyUp(_) => "keyup",
             DomEventData::Input(_) => "input",
@@ -51,9 +55,8 @@ impl EventHandler for Collector {
             DomEventData::Click(p)
             | DomEventData::MouseDown(p)
             | DomEventData::MouseUp(p)
-            | DomEventData::MouseMove(p) => {
-                (p.button as u16, p.client_x(), p.client_y())
-            }
+            | DomEventData::MouseMove(p) => (p.button as u16, p.client_x(), p.client_y()),
+            DomEventData::Wheel(w) => (0, w.client_x(), w.client_y()),
             _ => (0, 0.0, 0.0),
         };
 
@@ -124,6 +127,53 @@ pub fn pointer_button(x: f32, y: f32, button: MouseButton, state: ElementState) 
     }
 }
 
+pub fn wheel(x: f32, y: f32, delta: MouseScrollDelta) -> UiEvent {
+    let delta = match delta {
+        MouseScrollDelta::LineDelta(dx, dy) => {
+            BlitzWheelDelta::Lines(f64::from(-dx), f64::from(-dy))
+        }
+        MouseScrollDelta::PixelDelta(position) => {
+            BlitzWheelDelta::Pixels(-position.x, -position.y)
+        }
+    };
+
+    UiEvent::Wheel(BlitzWheelEvent {
+        delta,
+        coords: coords(x, y),
+        buttons: MouseEventButtons::empty(),
+        mods: Modifiers::default(),
+        element: Point { x, y },
+    })
+}
+
+pub fn wheel_pixels_of(delta: MouseScrollDelta) -> (f64, f64) {
+    match delta {
+        MouseScrollDelta::LineDelta(dx, dy) => {
+            (f64::from(dx) * LINE_HEIGHT, f64::from(dy) * LINE_HEIGHT)
+        }
+        MouseScrollDelta::PixelDelta(position) => (position.x, position.y),
+    }
+}
+
+pub fn wheel_pixels(x: f32, y: f32, dx: f64, dy: f64) -> UiEvent {
+    UiEvent::Wheel(BlitzWheelEvent {
+        delta: BlitzWheelDelta::Pixels(dx, dy),
+        coords: coords(x, y),
+        buttons: MouseEventButtons::empty(),
+        mods: Modifiers::default(),
+        element: Point { x, y },
+    })
+}
+
+pub fn ime(event: winit::event::Ime) -> UiEvent {
+    UiEvent::Ime(match event {
+        winit::event::Ime::Enabled => BlitzImeEvent::Enabled,
+        winit::event::Ime::Disabled => BlitzImeEvent::Disabled,
+        winit::event::Ime::Preedit(text, cursor) => BlitzImeEvent::Preedit(text, cursor),
+        winit::event::Ime::Commit(text) => BlitzImeEvent::Commit(text),
+    })
+}
+
 fn named_key(code: PhysicalKey) -> Key {
     let PhysicalKey::Code(code) = code else {
         return Key::Unidentified;
@@ -145,6 +195,64 @@ fn named_key(code: PhysicalKey) -> Key {
         KeyCode::Space => Key::Character(" ".into()),
         _ => Key::Unidentified,
     }
+}
+
+pub fn text_key(text: &str, pressed: bool) -> UiEvent {
+    let event = BlitzKeyEvent {
+        key: Key::Character(text.into()),
+        code: Code::Unidentified,
+        modifiers: Modifiers::default(),
+        location: Location::Standard,
+        is_auto_repeating: false,
+        is_composing: false,
+        state: if pressed {
+            KeyState::Pressed
+        } else {
+            KeyState::Released
+        },
+        text: Some(text.into()),
+    };
+    if pressed {
+        UiEvent::KeyDown(event)
+    } else {
+        UiEvent::KeyUp(event)
+    }
+}
+
+pub fn named(name: &str, pressed: bool) -> Option<UiEvent> {
+    let key = match name {
+        "Enter" => Key::Enter,
+        "Tab" => Key::Tab,
+        "Escape" => Key::Escape,
+        "Backspace" => Key::Backspace,
+        "Delete" => Key::Delete,
+        "ArrowUp" => Key::ArrowUp,
+        "ArrowDown" => Key::ArrowDown,
+        "ArrowLeft" => Key::ArrowLeft,
+        "ArrowRight" => Key::ArrowRight,
+        "Home" => Key::Home,
+        "End" => Key::End,
+        _ => return None,
+    };
+    let event = BlitzKeyEvent {
+        key,
+        code: Code::Unidentified,
+        modifiers: Modifiers::default(),
+        location: Location::Standard,
+        is_auto_repeating: false,
+        is_composing: false,
+        state: if pressed {
+            KeyState::Pressed
+        } else {
+            KeyState::Released
+        },
+        text: None,
+    };
+    Some(if pressed {
+        UiEvent::KeyDown(event)
+    } else {
+        UiEvent::KeyUp(event)
+    })
 }
 
 pub fn key(event: &winit::event::KeyEvent) -> UiEvent {

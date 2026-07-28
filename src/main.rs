@@ -70,6 +70,7 @@ impl App {
             bail!("renderer failed to initialize");
         }
 
+        window.set_ime_allowed(true);
         self.dom.set_viewport(size.width, size.height, self.scale);
         window.request_redraw();
         self.window = Some(window);
@@ -154,6 +155,22 @@ impl ApplicationHandler for App {
                     window.request_redraw();
                 }
             }
+            WindowEvent::MouseWheel { delta, .. } => {
+                let x = self.cursor.x as f32;
+                let y = self.cursor.y as f32;
+                self.drive(events::wheel(x, y, delta));
+                let (dx, dy) = events::wheel_pixels_of(delta);
+                let anchor = self.dom.hover_node();
+                for dispatch in self.dom.scroll(anchor, dx, dy) {
+                    if let Err(error) = self.script.dispatch(&dispatch) {
+                        eprintln!("{error:?}");
+                    }
+                }
+                if let Some(window) = self.window.as_ref() {
+                    window.request_redraw();
+                }
+            }
+            WindowEvent::Ime(event) => self.drive(events::ime(event)),
             WindowEvent::KeyboardInput { event, .. } => self.drive(events::key(&event)),
             WindowEvent::RedrawRequested => self.redraw(),
             _ => {}
@@ -201,15 +218,29 @@ fn open(input: &str) -> Result<()> {
     }
 }
 
-fn render(
-    input: &str,
-    output: &str,
-    clicks: &[String],
-    points: &[String],
-    hovers: &[String],
-    snapshot: Option<&String>,
-    at: Option<&String>,
-) -> Result<()> {
+#[derive(Default)]
+struct Run {
+    clicks: Vec<String>,
+    points: Vec<String>,
+    hovers: Vec<String>,
+    scrolls: Vec<String>,
+    types: Vec<String>,
+    presses: Vec<String>,
+    snapshot: Option<String>,
+    at: Option<String>,
+}
+
+fn render(input: &str, output: &str, run: &Run) -> Result<()> {
+    let Run {
+        clicks,
+        points,
+        hovers,
+        scrolls,
+        types,
+        presses,
+        snapshot,
+        at,
+    } = run;
     let (dom, script) = load(input)?;
 
     let mut targets: Vec<(f32, f32)> = Vec::new();
@@ -259,6 +290,55 @@ fn render(
         dom.settle(&script);
     }
 
+    for text in types {
+        for ch in text.chars() {
+            let ch = ch.to_string();
+            for pressed in [true, false] {
+                for dispatch in dom.drive(events::text_key(&ch, pressed)) {
+                    script.dispatch(&dispatch)?;
+                }
+            }
+        }
+        dom.settle(&script);
+    }
+
+    for name in presses {
+        for pressed in [true, false] {
+            let event = events::named(name, pressed)
+                .with_context(|| format!("unknown key {name}"))?;
+            for dispatch in dom.drive(event) {
+                script.dispatch(&dispatch)?;
+            }
+        }
+        dom.settle(&script);
+    }
+
+    for spec in scrolls {
+        let mut parts = spec.split(',');
+        let selector = parts.next().context("--scroll expects SELECTOR,DX,DY")?;
+        let dx: f64 = parts.next().context("--scroll DX")?.trim().parse().context("--scroll DX")?;
+        let dy: f64 = parts.next().context("--scroll DY")?.trim().parse().context("--scroll DY")?;
+
+        let node = dom
+            .query_selector(selector.trim())
+            .with_context(|| format!("no element matches {selector}"))?;
+        let (x, y) = dom
+            .center_of(node)
+            .with_context(|| format!("{selector} has no layout box"))?;
+
+        for dispatch in dom.drive(events::pointer_move(x, y)) {
+            script.dispatch(&dispatch)?;
+        }
+        for dispatch in dom.drive(events::wheel_pixels(x, y, dx, dy)) {
+            script.dispatch(&dispatch)?;
+        }
+        let anchor = dom.hover_node();
+        for dispatch in dom.scroll(anchor, -dx, -dy) {
+            script.dispatch(&dispatch)?;
+        }
+        dom.settle(&script);
+    }
+
     if let Some(seconds) = at {
         let seconds: f64 = seconds.parse().context("--at expects seconds")?;
         dom.set_time(seconds);
@@ -281,6 +361,7 @@ fn usage() -> ! {
     eprintln!("  kiln render <page.html> [out.png]");
     eprintln!("        [--click <selector>] [--click-at <x,y>] [--hover <selector>]");
     eprintln!("        [--snapshot <out.txt>] [--at <seconds>]");
+    eprintln!("        [--scroll <selector,dx,dy>] [--type <text>] [--press <key>]");
     eprintln!("                                     render headless to a PNG");
     std::process::exit(2)
 }
@@ -304,20 +385,21 @@ fn main() -> Result<()> {
                     .map(|pair| pair[1].clone())
                     .collect()
             };
-            let clicks = flag("--click");
-            let points = flag("--click-at");
-            let hovers = flag("--hover");
-            let snapshot = flag("--snapshot");
-            let at = flag("--at");
+            let run = Run {
+                clicks: flag("--click"),
+                points: flag("--click-at"),
+                hovers: flag("--hover"),
+                scrolls: flag("--scroll"),
+                types: flag("--type"),
+                presses: flag("--press"),
+                snapshot: flag("--snapshot").into_iter().next(),
+                at: flag("--at").into_iter().next(),
+            };
             match positional.first() {
                 Some(input) => render(
                     input,
                     positional.get(1).map_or("out.png", |s| s.as_str()),
-                    &clicks,
-                    &points,
-                    &hovers,
-                    snapshot.first(),
-                    at.first(),
+                    &run,
                 ),
                 None => usage(),
             }
@@ -414,5 +496,45 @@ mod snapshot_tests {
     #[test]
     fn animation() {
         golden_at("animation", &[], Some(1.0));
+    }
+
+    #[test]
+    fn input() {
+        let (dom, script) = load("examples/input.html").unwrap();
+        dom.settle(&script);
+
+        for ch in "Marshall".chars() {
+            let ch = ch.to_string();
+            for pressed in [true, false] {
+                for dispatch in dom.drive(events::text_key(&ch, pressed)) {
+                    script.dispatch(&dispatch).unwrap();
+                }
+            }
+        }
+        dom.settle(&script);
+
+        let node = dom.query_selector("#list").unwrap();
+        let (x, y) = dom.center_of(node).unwrap();
+        for dispatch in dom.drive(events::pointer_move(x, y)) {
+            script.dispatch(&dispatch).unwrap();
+        }
+        for dispatch in dom.drive(events::wheel_pixels(x, y, 0.0, 90.0)) {
+            script.dispatch(&dispatch).unwrap();
+        }
+        let anchor = dom.hover_node();
+        for dispatch in dom.scroll(anchor, 0.0, -90.0) {
+            script.dispatch(&dispatch).unwrap();
+        }
+        dom.settle(&script);
+
+        let actual = dom.snapshot();
+        let path = "tests/golden/input.txt";
+        if std::env::var_os("KILN_BLESS").is_some() {
+            std::fs::write(path, &actual).unwrap();
+            return;
+        }
+        let expected = std::fs::read_to_string(path)
+            .unwrap_or_else(|_| panic!("missing {path}; run with KILN_BLESS=1"));
+        assert_eq!(expected, actual, "snapshot changed for input");
     }
 }

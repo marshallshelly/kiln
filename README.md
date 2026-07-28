@@ -10,14 +10,14 @@
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/marshallshelly/kiln?style=flat-square&color=0B1226&label=stars" alt="Stars">
-  <img src="https://img.shields.io/badge/status-M0--M4%20%2B%20Preact--F5A93C?style=flat-square" alt="Status: M0 to M4 plus Preact">
+  <img src="https://img.shields.io/badge/status-M0--M5%20%2B%20Preact--F5A93C?style=flat-square" alt="Status: M0 to M5 plus Preact">
   <img src="https://img.shields.io/badge/built%20with-Rust-0B1226?style=flat-square" alt="Built with Rust">
   <img src="https://img.shields.io/badge/license-Apache--2.0-0B1226?style=flat-square" alt="Apache-2.0 license">
 </p>
 
 <p align="center">
   <strong>Native desktop apps from real HTML, CSS, and TypeScript &middot; rendered by our own engine &middot; no Chromium, no WebView</strong><br>
-  <sub><strong>This is early.</strong> HTML and CSS render, and JavaScript can drive the DOM — a counter app works. The CSS surface is partial and most of the toolkit (scrolling, menus, packaging) is not built. Read <a href="#status">Status</a> before you get excited.</sub>
+  <sub><strong>This is early.</strong> HTML and CSS render, and JavaScript can drive the DOM — a counter app works. The CSS surface is partial and much of the toolkit (native menus, packaging, DevTools) is not built. Read <a href="#status">Status</a> before you get excited.</sub>
 </p>
 
 ---
@@ -43,8 +43,8 @@ Honesty is the product, so here is the unflattering version.
 | **M2** | ✅ | Parley text: ligatures, RTL, Devanagari, CJK, Thai line breaking, bidi, colour emoji |
 | **M3** | ✅ | QuickJS + DOM bridge + events — **a counter app works**; hover, checkbox, details and focus come from the engine |
 | **M4** | ✅ | transitions, `@keyframes`, custom properties, `@media` — driven by a real animation clock |
-| M5 | next | scrolling with native physics, focus, keyboard nav, text input with IME |
-| M6 | | menus, tray, dialogs, clipboard, notifications, accessibility tree |
+| **M5** | ✅ | scrolling, focus, keyboard nav, text input — IME wired but unverified |
+| M6 | next | menus, tray, dialogs, clipboard, notifications, accessibility tree |
 | M7 | | `kiln init/dev/build/check`, hot reload, DevTools over CDP |
 | M8 | | **Preact runs unmodified.** Tailwind works. |
 | M9 | | packaging: `.app`/`.dmg`/`.msi`/`.deb`, signing, notarization |
@@ -287,6 +287,22 @@ cargo run -- render examples/animation.html out.png --at 1.0
 That is a single deterministic frame one second into a two-second timeline. The bar is 270px through a 120→420 transition with its background interpolated between amber and mint; the second box has translated 160 of 320px and faded to 0.6 opacity; the third is at its `@keyframes` height peak.
 
 `tests/golden/animation.txt` is blessed at exactly that instant, so a frozen clock — which is what this was before M4, with `resolve()` hardcoded to time zero — fails the build instead of quietly rendering the first frame forever.
+
+## Scrolling, focus and typing
+
+An app has to accept a keystroke and scroll a list. Both now work, and both are driven headlessly so they are testable:
+
+```bash
+cargo run -- render examples/input.html out.png --type "Marshall" --scroll "#list,0,90"
+```
+
+<p align="center">
+  <img src="assets/input.png" width="720" alt="A focused text input containing the typed word Marshall with a visible caret and amber focus ring, above a scrolled list showing rows 2 through 5 with a scrollbar.">
+</p>
+
+Nothing in that page polls. The input's `input` listener wrote the echo line, the list's `scroll` listener wrote `scrollTop: 90`, and the `:focus` border came from the cascade. `tests/golden/input.txt` records both strings.
+
+Wheel events go through Blitz's `EventDriver` like every other input, so scroll clamping and bubbling to the parent — then the viewport — come from the engine. Kiln's part is forwarding winit's wheel and IME events, which it previously did not, and calling `scroll_by`, since Blitz treats scrolling as the shell's job rather than the DOM's.
 
 ## Tests read text, not pixels
 

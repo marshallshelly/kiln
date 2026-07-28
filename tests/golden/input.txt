@@ -1,0 +1,41 @@
+0 #document
+  0/0 html @ 0,0 1000x396.5 | display:block/flow position:static
+    0/0/0 head @ 0,0 0x0 | display:none/none position:static
+      0/0/0/1 meta charset="utf-8" @ 0,0 0x0 | display:none
+      0/0/0/3 title @ 0,0 0x0 | display:none
+        0/0/0/3/0 "Kiln — input"
+      0/0/0/5 style @ 0,0 0x0 | display:none
+        0/0/0/5/0 <896 chars>
+    0/0/2 body @ 0,0 1000x396.5 | display:block/flow position:static
+      0/0/2/1 h1 @ 24,24 952x15.5 | display:block/flow position:static
+        0/0/2/1/0 "Input and scrolling"
+      0/0/2/3 section @ 24,58 952x80.5 | display:block/flow position:static
+        0/0/2/3/1 div.lbl @ 24,58 952x12 | display:block/flow position:static
+          0/0/2/3/1/0 "text input — typed through the engine"
+        0/0/2/3/3 input#name @ 24,76 324x38 | display:inline/flow-root position:static
+        0/0/2/3/5 output#echo @ 24,124 952x14.5 | display:block/flow position:static
+          0/0/2/3/5/0 "value: \"Marshall\""
+      0/0/2/5 section @ 24,158 952x194.5 | display:block/flow position:static
+        0/0/2/5/1 div.lbl @ 24,158 952x12 | display:block/flow position:static
+          0/0/2/5/1/0 "overflow: auto — driven by the wheel"
+        0/0/2/5/3 div#list @ 24,86 302x152 | display:block/flow position:static
+          0/0/2/5/3/1 div#row0.item @ 25,87 300x39.75 | display:block/flow position:static
+            0/0/2/5/3/1/0 "row 0"
+          0/0/2/5/3/3 div.item @ 25,127 300x39.75 | display:block/flow position:static
+            0/0/2/5/3/3/0 "row 1"
+          0/0/2/5/3/5 div.item @ 25,167 300x39.75 | display:block/flow position:static
+            0/0/2/5/3/5/0 "row 2"
+          0/0/2/5/3/7 div.item @ 25,206 300x39.75 | display:block/flow position:static
+            0/0/2/5/3/7/0 "row 3"
+          0/0/2/5/3/9 div.item @ 25,246 300x39.75 | display:block/flow position:static
+            0/0/2/5/3/9/0 "row 4"
+          0/0/2/5/3/11 div.item @ 25,286 300x39.75 | display:block/flow position:static
+            0/0/2/5/3/11/0 "row 5"
+          0/0/2/5/3/13 div.item @ 25,326 300x39.75 | display:block/flow position:static
+            0/0/2/5/3/13/0 "row 6"
+          0/0/2/5/3/15 div.item @ 25,366 300x39.75 | display:block/flow position:static
+            0/0/2/5/3/15/0 "row 7"
+        0/0/2/5/5 output#pos @ 24,338 952x14.5 | display:block/flow position:static
+          0/0/2/5/5/0 "scrollTop: 90"
+      0/0/2/7 script @ 0,0 0x0 | display:none/none position:static
+        0/0/2/7/0 <403 chars>

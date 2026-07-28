@@ -329,6 +329,58 @@ impl Dom {
         collector.queued.take()
     }
 
+    pub fn value(&self, node_id: usize) -> Option<String> {
+        let document = self.document.borrow();
+        let element = document.get_node(node_id)?.element_data()?;
+        let input = element.text_input_data()?;
+        let text = input.editor.text().to_string();
+
+        let seeded = !element
+            .attrs
+            .iter()
+            .any(|attr| attr.name.local.as_ref() == "value");
+        if seeded && let Some(trimmed) = text.strip_suffix(' ') {
+            return Some(trimmed.to_string());
+        }
+        Some(text)
+    }
+
+    pub fn set_value(&self, node_id: usize, value: &str) {
+        let mut document = self.document.borrow_mut();
+        let Some(element) = document
+            .get_node_mut(node_id)
+            .and_then(|node| node.element_data_mut())
+        else {
+            return;
+        };
+        let Some(input) = element.text_input_data_mut() else {
+            return;
+        };
+        input.editor.set_text(value);
+    }
+
+    pub fn hover_node(&self) -> Option<usize> {
+        self.document.borrow().get_hover_node_id()
+    }
+
+    pub fn scroll(&self, anchor: Option<usize>, dx: f64, dy: f64) -> Vec<crate::events::Dispatch> {
+        let mut queued = Vec::new();
+        {
+            let mut document = self.document.borrow_mut();
+            document.scroll_by(anchor, dx, dy, &mut |event| {
+                queued.push(crate::events::Dispatch {
+                    chain: vec![event.target],
+                    kind: "scroll",
+                    key: None,
+                    button: 0,
+                    client_x: 0.0,
+                    client_y: 0.0,
+                });
+            });
+        }
+        queued
+    }
+
     pub fn center_of(&self, node_id: usize) -> Option<(f32, f32)> {
         let document = self.document.borrow();
         let node = document.get_node(node_id)?;

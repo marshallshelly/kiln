@@ -99,6 +99,11 @@ class Element extends Node {
   removeAttribute(name) { __kiln.removeAttribute(this.__id, name); }
   getAttribute(name) { return __kiln.getAttribute(this.__id, name); }
   hasAttribute(name) { return __kiln.getAttribute(this.__id, name) !== null; }
+  get value() {
+    const v = __kiln.getValue(this.__id);
+    return v === null ? (__kiln.getAttribute(this.__id, "value") || "") : v;
+  }
+  set value(v) { __kiln.setValue(this.__id, v == null ? "" : String(v)); }
   get className() { return __kiln.getAttribute(this.__id, "class") || ""; }
   set className(value) { this.setAttribute("class", value); }
   get id() { return __kiln.getAttribute(this.__id, "id") || ""; }
@@ -307,7 +312,7 @@ globalThis.document = {
   removeEventListener(type, handler) { const b = this.body; if (b) b.removeEventListener(type, handler); },
 };
 
-Object.assign(globalThis.document, {
+Object.defineProperties(globalThis.document, Object.getOwnPropertyDescriptors({
   querySelectorAll(selector) { return __kiln.querySelectorAllIn(null, selector).map(__wrap); },
   get activeElement() { return __wrap(__kiln.activeElement()); },
   getElementById(id) { return __wrap(__kiln.querySelector("#" + id)); },
@@ -321,7 +326,7 @@ Object.assign(globalThis.document, {
   get childNodes() { const el = __wrap(__kiln.querySelector("html")); return el ? [el] : []; },
   createComment() { return __wrap(__kiln.createText("")); },
   defaultView: globalThis,
-});
+}));
 
 globalThis.window = globalThis;
 globalThis.self = globalThis;
@@ -885,6 +890,8 @@ impl Script {
                 bind!("matches", d, move |id: usize, sel: String| d.matches(id, &sel));
                 bind!("focus", d, move |id: Option<usize>| d.focus(id));
                 bind!("activeElement", d, move || d.active_element());
+                bind!("getValue", d, move |id: usize| d.value(id));
+                bind!("setValue", d, move |id: usize, v: String| d.set_value(id, &v));
                 bind!("rect", d, move |id: usize| d.client_rect(id));
                 bind!("boxMetrics", d, move |id: usize| d.box_metrics(id));
                 bind!("viewportSize", d, move || d.viewport_size());
