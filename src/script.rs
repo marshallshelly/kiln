@@ -7,8 +7,18 @@ use crate::dom::Dom;
 use crate::native::Native;
 
 const PRELUDE: &str = r##"
+const __show = (a) => {
+  if (typeof a === "string") return a;
+  // JSON.stringify(new Error("x")) is "{}", which is how a stack trace turns
+  // into no information at all.
+  if (a instanceof Error || (a && typeof a.message === "string" && typeof a.stack !== "undefined")) {
+    return (a.name || "Error") + ": " + a.message + (a.stack ? "\n" + a.stack : "");
+  }
+  try { return JSON.stringify(a) ?? String(a); } catch (_) { return String(a); }
+};
+
 globalThis.console = {
-  log: (...args) => __kiln.log(args.map((a) => typeof a === "string" ? a : JSON.stringify(a)).join(" ")),
+  log: (...args) => __kiln.log(args.map(__show).join(" ")),
 };
 globalThis.console.info = globalThis.console.log;
 globalThis.console.warn = globalThis.console.log;
@@ -311,8 +321,29 @@ globalThis.document = {
   querySelector(selector) { return __wrap(__kiln.querySelector(selector)); },
   get body() { return __wrap(__kiln.body()); },
   get documentElement() { return __wrap(__kiln.querySelector("html")); },
-  addEventListener(type, handler) { const b = this.body; if (b) b.addEventListener(type, handler); },
-  removeEventListener(type, handler) { const b = this.body; if (b) b.removeEventListener(type, handler); },
+  addEventListener(type, handler) {
+    const key = "document:" + type;
+    const existing = __listeners.get(key);
+    if (existing) existing.push(handler); else __listeners.set(key, [handler]);
+  },
+  removeEventListener(type, handler) {
+    const existing = __listeners.get("document:" + type);
+    if (!existing) return;
+    const index = existing.indexOf(handler);
+    if (index >= 0) existing.splice(index, 1);
+  },
+  createTreeWalker(root, whatToShow, filter) {
+    return new __TreeWalker(root || this.documentElement, whatToShow, filter);
+  },
+  createTreeWalker(root, whatToShow, filter) {
+    return new __TreeWalker(root || this.documentElement, whatToShow, filter);
+  },
+  dispatchEvent(event) {
+    const type = event && event.type;
+    if (!type) return true;
+    __fireDocument(type, event);
+    return !event.defaultPrevented;
+  },
 };
 
 Object.defineProperties(globalThis.document, Object.getOwnPropertyDescriptors({
@@ -788,6 +819,64 @@ globalThis.kiln = {
   notify(title, body) { return __kiln.notify(String(title || ""), String(body || "")); },
 };
 
+globalThis.NodeFilter = {
+  SHOW_ALL: 0xffffffff,
+  SHOW_ELEMENT: 1,
+  SHOW_TEXT: 4,
+  FILTER_ACCEPT: 1,
+  FILTER_REJECT: 2,
+  FILTER_SKIP: 3,
+};
+
+/// Focus traps walk the tree looking for tabbable elements, so this only needs
+/// to be faithful in document order, not lazy.
+class __TreeWalker {
+  constructor(root, whatToShow, filter) {
+    this.root = root;
+    this.currentNode = root;
+    this.__queue = [];
+
+    const wantsElements = !whatToShow || (whatToShow & NodeFilter.SHOW_ELEMENT) !== 0;
+    const wantsText = (whatToShow & NodeFilter.SHOW_TEXT) !== 0;
+
+    const visit = (node) => {
+      for (const child of node.childNodes) {
+        const isText = child.nodeType === 3;
+        if ((isText && wantsText) || (!isText && wantsElements)) {
+          let verdict = NodeFilter.FILTER_ACCEPT;
+          if (typeof filter === "function") verdict = filter(child);
+          else if (filter && typeof filter.acceptNode === "function") verdict = filter.acceptNode(child);
+
+          if (verdict === NodeFilter.FILTER_REJECT) continue;
+          if (verdict !== NodeFilter.FILTER_SKIP) this.__queue.push(child);
+        }
+        if (!isText) visit(child);
+      }
+    };
+    visit(root);
+  }
+
+  nextNode() {
+    const next = this.__queue.shift();
+    this.currentNode = next || this.currentNode;
+    return next || null;
+  }
+
+  firstChild() { return this.nextNode(); }
+}
+globalThis.TreeWalker = __TreeWalker;
+
+globalThis.__fireDocument = (type, event) => {
+  const handlers = __listeners.get("document:" + type);
+  if (!handlers || !handlers.length) return false;
+  if (event && event.currentTarget === undefined) event.currentTarget = globalThis.document;
+  for (const handler of handlers.slice()) {
+    if (typeof handler === "function") handler.call(globalThis.document, event);
+    else if (handler && typeof handler.handleEvent === "function") handler.handleEvent(event);
+  }
+  return true;
+};
+
 globalThis.__dispatch = (path, type, detail) => {
   let fired = false;
   let stopped = false;
@@ -816,6 +905,7 @@ globalThis.__dispatch = (path, type, detail) => {
     }
     if (stopped) break;
   }
+  if (!stopped && __fireDocument(type, event)) fired = true;
   return fired;
 };
 "##;
