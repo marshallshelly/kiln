@@ -126,6 +126,12 @@ jobs:
           kiln-ci check /usr/lib/kiln-ci/app/index.html
           sudo dpkg -r kiln-ci
 
+          # Same guard as Windows: a .deb that lists cleanly but ships nothing
+          # would still install without error.
+          size=$(stat -c %s "$deb")
+          echo "$deb is $size bytes"
+          test "$size" -gt 1000000
+
       # Windows: build the installer, then confirm the payload runs.
       - name: Build an .msi
         if: runner.os == 'Windows'
@@ -137,8 +143,16 @@ jobs:
           test -f "dist/KilnCI/KilnCI.exe"
           test -f "dist/KilnCI/app/index.html"
           test -f "dist/KilnCI/app/vendor/tailwind.css"
-          ls dist/*.msi
           ./dist/KilnCI/KilnCI.exe check dist/KilnCI/app/index.html
+
+          # An .msi that built is not an .msi that contains anything. The
+          # payload is a ~30 MB binary, so anything under a megabyte is an
+          # empty installer that would pass a mere existence check.
+          msi=$(ls dist/*.msi)
+          size=$(stat -c %s "$msi" 2>/dev/null || stat -f %z "$msi")
+          echo "$msi is $size bytes"
+          test "$size" -gt 1000000
+          cat dist/*.wxs | head -20
 
       - uses: actions/upload-artifact@v4
         with:

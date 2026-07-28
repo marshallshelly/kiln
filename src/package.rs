@@ -222,9 +222,20 @@ fn windows(entry: &Path, dom: &crate::dom::Dom, options: &Options) -> Result<Pat
 }
 
 fn wix_source(options: &Options, payload: &Path) -> Result<String> {
+    // WiX resolves a relative `Source` against the .wxs file's directory, not
+    // the working directory, so an empty installer is what you get if these
+    // are left relative.
+    let payload = payload
+        .canonicalize()
+        .with_context(|| format!("resolve {}", payload.display()))?;
+
     let mut files = String::new();
     let mut id = 0usize;
-    collect_wix_files(payload, payload, &mut id, &mut files)?;
+    collect_wix_files(&payload, &payload, &mut id, &mut files)?;
+
+    if id == 0 {
+        bail!("no files staged for the installer at {}", payload.display());
+    }
 
     Ok(format!(
         r#"<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
