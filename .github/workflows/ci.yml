@@ -62,19 +62,40 @@ jobs:
       # produces them.
       - run: cargo test --locked
 
+  # Every installer is built on the platform it targets and inspected there,
+  # because an installer nobody opened is not evidence of anything.
   package:
-    name: package (macOS)
-    runs-on: macos-latest
+    name: package (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-3-dev libxdo-dev libayatana-appindicator3-dev \
+            libx11-dev libxkbcommon-dev libwayland-dev \
+            libxcb-shape0-dev libxcb-xfixes0-dev libssl-dev pkg-config dpkg-dev
+
+      - name: Install WiX
+        if: runner.os == 'Windows'
+        run: dotnet tool install --global wix
+
       - run: cargo build --release --locked
 
-      # Prove the shipped artefact is real: bundle it, then check the layout
-      # macOS requires and that a linked stylesheet travelled with the app.
-      - name: Build a .app
+      # macOS: check the layout the OS requires, and that a linked stylesheet
+      # travelled with the app.
+      - name: Build a .app and .dmg
+        if: runner.os == 'macOS'
         run: |
           ./target/release/kiln package examples/tailwind.html \
             --name "Kiln CI" --out dist --dmg
@@ -83,8 +104,43 @@ jobs:
           test -f "dist/Kiln CI.app/Contents/Resources/app/vendor/tailwind.css"
           test -f "dist/Kiln CI.dmg"
 
+      # Linux: build the package, then actually install it and run the
+      # installed binary. dpkg-deb --contents alone would not catch a broken
+      # symlink or a missing asset.
+      - name: Build and install a .deb
+        if: runner.os == 'Linux'
+        run: |
+          ./target/release/kiln package examples/tailwind.html \
+            --name "Kiln CI" --out dist --deb
+          deb=$(ls dist/*.deb)
+          dpkg-deb --contents "$deb"
+          sudo dpkg -i "$deb"
+          test -L /usr/bin/kiln-ci
+          test -f /usr/lib/kiln-ci/app/index.html
+          test -f /usr/lib/kiln-ci/app/vendor/tailwind.css
+          test -f /usr/share/applications/kiln-ci.desktop
+          kiln-ci check /usr/lib/kiln-ci/app/index.html
+          sudo dpkg -r kiln-ci
+
+      # Windows: build the installer, then confirm the payload runs.
+      - name: Build an .msi
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          ./target/release/kiln.exe package examples/tailwind.html \
+            --name "KilnCI" --out dist --msi
+          ls -la dist
+          test -f "dist/KilnCI/KilnCI.exe"
+          test -f "dist/KilnCI/app/index.html"
+          test -f "dist/KilnCI/app/vendor/tailwind.css"
+          ls dist/*.msi
+          ./dist/KilnCI/KilnCI.exe check dist/KilnCI/app/index.html
+
       - uses: actions/upload-artifact@v4
         with:
-          name: kiln-macos-dmg
-          path: dist/*.dmg
+          name: kiln-${{ runner.os }}-installer
+          path: |
+            dist/*.dmg
+            dist/*.deb
+            dist/*.msi
           if-no-files-found: error

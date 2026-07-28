@@ -643,6 +643,8 @@ fn package(input: &str, args: &[String]) -> Result<()> {
         out: flag("--out").map_or_else(|| std::path::PathBuf::from("dist"), Into::into),
         sign: flag("--sign"),
         dmg: args.iter().any(|arg| arg == "--dmg"),
+        deb: args.iter().any(|arg| arg == "--deb"),
+        msi: args.iter().any(|arg| arg == "--msi"),
         notarize: flag("--notarize"),
         name,
     };
@@ -680,13 +682,22 @@ fn check(inputs: &[String]) -> Result<()> {
     Ok(())
 }
 
-/// When the executable sits in a `.app`, the page lives beside it in
-/// `Contents/Resources/app`. Running the bundle with no arguments opens it.
+/// Where a packaged app keeps its page, relative to the executable. macOS puts
+/// it in `Contents/Resources/app`; every other layout keeps it beside the
+/// binary. Running a packaged app with no arguments opens it.
 fn bundled_entry() -> Option<std::path::PathBuf> {
     let exe = std::env::current_exe().ok()?;
-    let resources = exe.parent()?.parent()?.join("Resources").join("app");
-    let entry = resources.join("index.html");
-    entry.exists().then_some(entry)
+    let beside = exe.parent()?;
+
+    let candidates = [
+        beside.join("app").join("index.html"),
+        beside
+            .parent()?
+            .join("Resources")
+            .join("app")
+            .join("index.html"),
+    ];
+    candidates.into_iter().find(|path| path.exists())
 }
 
 fn inspect_port(args: &[String]) -> Option<u16> {
@@ -709,7 +720,8 @@ fn usage() -> ! {
     eprintln!("  kiln build  <page.html> [outdir]   bundle the app and its scripts");
     eprintln!("  kiln package <page.html>           build a .app");
     eprintln!("        [--name N] [--identifier ID] [--version V] [--out DIR]");
-    eprintln!("        [--sign IDENTITY] [--dmg] [--notarize PROFILE]");
+    eprintln!("        [--dmg] (macOS)  [--deb] (Linux)  [--msi] (Windows)");
+    eprintln!("        [--sign IDENTITY] [--notarize PROFILE]");
     eprintln!("  kiln render <page.html> [out.png]  render headless to a PNG");
     eprintln!("        [--click <selector>] [--click-at <x,y>] [--hover <selector>]");
     eprintln!("        [--type <text>] [--press <key>] [--scroll <selector,dx,dy>]");
@@ -1023,6 +1035,8 @@ mod snapshot_tests {
             out: out.clone(),
             sign: None,
             dmg: false,
+            deb: false,
+            msi: false,
             notarize: None,
         };
         let app = package::bundle(entry, &dom, &options).unwrap();
