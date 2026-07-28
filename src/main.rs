@@ -803,7 +803,14 @@ mod snapshot_tests {
         }
         let expected = std::fs::read_to_string(path)
             .unwrap_or_else(|_| panic!("missing {path}; run with KILN_BLESS=1"));
-        assert_eq!(expected, actual, "golden changed: {path}");
+
+        // .gitattributes keeps these LF everywhere, but a contributor with
+        // core.autocrlf set should get a real diff rather than a line-ending one.
+        assert_eq!(
+            expected.replace("\r\n", "\n"),
+            actual.replace("\r\n", "\n"),
+            "golden changed: {path}"
+        );
     }
 
     /// Tree snapshots record box sizes, which depend on the installed fonts, so

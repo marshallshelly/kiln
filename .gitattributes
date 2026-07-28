@@ -1,0 +1,6 @@
+# Goldens are compared byte for byte, so they must check out identically on
+# every platform. Without this, git hands Windows CRLF and every text golden
+# fails there.
+* text=auto eol=lf
+
+*.png binary
