@@ -1,0 +1,25 @@
+0 #document
+  0/0 html @ 0,0 1000x351.5 | display:block/flow position:static
+    0/0/0 head @ 0,0 0x0 | display:none/none position:static
+      0/0/0/1 meta charset="utf-8" @ 0,0 0x0 | display:none
+      0/0/0/3 title @ 0,0 0x0 | display:none
+        0/0/0/3/0 "Kiln — animation"
+      0/0/0/5 style @ 0,0 0x0 | display:none
+        0/0/0/5/0 <1089 chars>
+    0/0/2 body @ 0,0 1000x351.5 | display:block/flow position:static
+      0/0/2/1 h1 @ 24,24 952x15.5 | display:block/flow position:static
+        0/0/2/1/0 "Animation"
+      0/0/2/3 section @ 24,60 952x62 | display:block/flow position:static
+        0/0/2/3/1 div.lbl @ 24,60 952x12 | display:block/flow position:static
+          0/0/2/3/1/0 "transition — width and background, 2s linear"
+        0/0/2/3/3 div#bar.bar.go @ 24,78 270x44 | display:block/flow position:static
+      0/0/2/5 section @ 24,144 952x62 | display:block/flow position:static
+        0/0/2/5/1 div.lbl @ 24,144 952x12 | display:block/flow position:static
+          0/0/2/5/1/0 "@keyframes — transform and opacity"
+        0/0/2/5/3 div#drift.drift @ 24,162 120x44 | display:block/flow position:static
+      0/0/2/7 section @ 24,228 952x78 | display:block/flow position:static
+        0/0/2/7/1 div.lbl @ 24,228 952x12 | display:block/flow position:static
+          0/0/2/7/1/0 "@keyframes — height, so layout follows the clock"
+        0/0/2/7/3 div#pulse.pulse @ 24,246 44x60 | display:block/flow position:static
+      0/0/2/9 script @ 0,0 0x0 | display:none/none position:static
+        0/0/2/9/0 <51 chars>

@@ -1,0 +1,110 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Kiln — animation</title>
+    <style>
+      :root {
+        --amber: #f5a93c;
+        --mint: #7fc3ac;
+        --ink: #0b1226;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        background: var(--ink);
+        color: #f4e7d3;
+        font-family: Helvetica, Arial, sans-serif;
+      }
+      h1 {
+        margin: 0 0 20px;
+        font-size: 13px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #8fa0c4;
+      }
+      section {
+        margin-bottom: 22px;
+      }
+      .lbl {
+        margin-bottom: 6px;
+        font-family: Menlo, monospace;
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #6c7a9c;
+      }
+      .bar {
+        width: 120px;
+        height: 44px;
+        border-radius: 8px;
+        background: var(--amber);
+        transition:
+          width 2s linear,
+          background-color 2s linear;
+      }
+      .bar.go {
+        width: 420px;
+        background: var(--mint);
+      }
+
+      @keyframes drift {
+        from {
+          transform: translateX(0);
+          opacity: 1;
+        }
+        to {
+          transform: translateX(320px);
+          opacity: 0.2;
+        }
+      }
+      .drift {
+        width: 120px;
+        height: 44px;
+        border-radius: 8px;
+        background: var(--amber);
+        animation: drift 2s linear infinite;
+      }
+
+      @keyframes pulse {
+        0% {
+          height: 20px;
+        }
+        50% {
+          height: 60px;
+        }
+        100% {
+          height: 20px;
+        }
+      }
+      .pulse {
+        width: 44px;
+        border-radius: 8px;
+        background: var(--mint);
+        animation: pulse 2s linear infinite;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Animation</h1>
+
+    <section>
+      <div class="lbl">transition — width and background, 2s linear</div>
+      <div class="bar" id="bar"></div>
+    </section>
+
+    <section>
+      <div class="lbl">@keyframes — transform and opacity</div>
+      <div class="drift" id="drift"></div>
+    </section>
+
+    <section>
+      <div class="lbl">@keyframes — height, so layout follows the clock</div>
+      <div class="pulse" id="pulse"></div>
+    </section>
+
+    <script>
+      document.querySelector("#bar").classList.add("go");
+    </script>
+  </body>
+</html>

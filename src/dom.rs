@@ -217,6 +217,7 @@ impl Journal {
 pub struct Dom {
     document: Rc<RefCell<HtmlDocument>>,
     journal: Rc<RefCell<Journal>>,
+    clock: Rc<std::cell::Cell<f64>>,
 }
 
 impl Dom {
@@ -231,6 +232,7 @@ impl Dom {
         Self {
             document: Rc::new(RefCell::new(document)),
             journal: Rc::new(RefCell::new(Journal::default())),
+            clock: Rc::new(std::cell::Cell::new(0.0)),
         }
     }
 
@@ -278,11 +280,20 @@ impl Dom {
     }
 
     pub fn resolve(&self) {
-        self.document.borrow_mut().resolve(0.0);
+        let now = self.clock.get();
+        self.document.borrow_mut().resolve(now);
     }
 
     pub fn flush_layout(&self) {
-        self.document.borrow_mut().resolve(0.0);
+        self.resolve();
+    }
+
+    pub fn set_time(&self, seconds: f64) {
+        self.clock.set(seconds);
+    }
+
+    pub fn is_animating(&self) -> bool {
+        self.document.borrow().is_animating()
     }
 
     pub fn settle(&self, script: &crate::script::Script) {

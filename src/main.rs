@@ -27,6 +27,7 @@ struct App {
     cursor: PhysicalPosition<f64>,
     scale: f32,
     size: (u32, u32),
+    started: std::time::Instant,
     failure: Option<anyhow::Error>,
 }
 
@@ -40,6 +41,7 @@ impl App {
             cursor: PhysicalPosition::new(0.0, 0.0),
             scale: 1.0,
             size: (DEFAULT_WIDTH, DEFAULT_HEIGHT),
+            started: std::time::Instant::now(),
             failure: None,
         }
     }
@@ -91,7 +93,10 @@ impl App {
         if !self.renderer.is_active() {
             return;
         }
+        self.dom.set_time(self.started.elapsed().as_secs_f64());
         self.dom.settle(&self.script);
+
+        let animating = self.dom.is_animating();
         let Self {
             renderer,
             dom,
@@ -102,6 +107,10 @@ impl App {
         let (width, height) = *size;
         let scale = f64::from(*scale);
         renderer.render(|scene| dom.paint(scene, scale, width, height));
+
+        if animating && let Some(window) = self.window.as_ref() {
+            window.request_redraw();
+        }
     }
 }
 
@@ -199,6 +208,7 @@ fn render(
     points: &[String],
     hovers: &[String],
     snapshot: Option<&String>,
+    at: Option<&String>,
 ) -> Result<()> {
     let (dom, script) = load(input)?;
 
@@ -249,6 +259,12 @@ fn render(
         dom.settle(&script);
     }
 
+    if let Some(seconds) = at {
+        let seconds: f64 = seconds.parse().context("--at expects seconds")?;
+        dom.set_time(seconds);
+        dom.settle(&script);
+    }
+
     if let Some(path) = snapshot {
         std::fs::write(path, dom.snapshot()).with_context(|| format!("write {path}"))?;
         println!("{input} -> {path}");
@@ -264,7 +280,7 @@ fn usage() -> ! {
     eprintln!("  kiln open   <page.html>            open in a native window");
     eprintln!("  kiln render <page.html> [out.png]");
     eprintln!("        [--click <selector>] [--click-at <x,y>] [--hover <selector>]");
-    eprintln!("        [--snapshot <out.txt>]");
+    eprintln!("        [--snapshot <out.txt>] [--at <seconds>]");
     eprintln!("                                     render headless to a PNG");
     std::process::exit(2)
 }
@@ -292,6 +308,7 @@ fn main() -> Result<()> {
             let points = flag("--click-at");
             let hovers = flag("--hover");
             let snapshot = flag("--snapshot");
+            let at = flag("--at");
             match positional.first() {
                 Some(input) => render(
                     input,
@@ -300,6 +317,7 @@ fn main() -> Result<()> {
                     &points,
                     &hovers,
                     snapshot.first(),
+                    at.first(),
                 ),
                 None => usage(),
             }
@@ -314,6 +332,10 @@ mod snapshot_tests {
     use super::*;
 
     fn golden(name: &str, clicks: &[&str]) {
+        golden_at(name, clicks, None);
+    }
+
+    fn golden_at(name: &str, clicks: &[&str], at: Option<f64>) {
         let (dom, script) = load(&format!("examples/{name}.html")).unwrap();
         dom.settle(&script);
 
@@ -328,6 +350,11 @@ mod snapshot_tests {
                     script.dispatch(&dispatch).unwrap();
                 }
             }
+            dom.settle(&script);
+        }
+
+        if let Some(seconds) = at {
+            dom.set_time(seconds);
             dom.settle(&script);
         }
 
@@ -382,5 +409,10 @@ mod snapshot_tests {
     #[test]
     fn text() {
         golden("text", &[]);
+    }
+
+    #[test]
+    fn animation() {
+        golden_at("animation", &[], Some(1.0));
     }
 }

@@ -10,7 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/marshallshelly/kiln?style=flat-square&color=0B1226&label=stars" alt="Stars">
-  <img src="https://img.shields.io/badge/status-M2%2C%20M3%20%2B%20Preact--F5A93C?style=flat-square" alt="Status: M2, M3 plus Preact">
+  <img src="https://img.shields.io/badge/status-M0--M4%20%2B%20Preact--F5A93C?style=flat-square" alt="Status: M0 to M4 plus Preact">
   <img src="https://img.shields.io/badge/built%20with-Rust-0B1226?style=flat-square" alt="Built with Rust">
   <img src="https://img.shields.io/badge/license-Apache--2.0-0B1226?style=flat-square" alt="Apache-2.0 license">
 </p>
@@ -42,8 +42,8 @@ Honesty is the product, so here is the unflattering version.
 | **M1** | ✅ | HTML + CSS renders — cascade, flexbox, gradients, text — in a window and headless |
 | **M2** | ✅ | Parley text: ligatures, RTL, Devanagari, CJK, Thai line breaking, bidi, colour emoji |
 | **M3** | ✅ | QuickJS + DOM bridge + events — **a counter app works**; hover, checkbox, details and focus come from the engine |
-| M4 | next | restyle invalidation, transitions, keyframes, custom properties |
-| M5 | | scrolling with native physics, focus, keyboard nav, text input with IME |
+| **M4** | ✅ | transitions, `@keyframes`, custom properties, `@media` — driven by a real animation clock |
+| M5 | next | scrolling with native physics, focus, keyboard nav, text input with IME |
 | M6 | | menus, tray, dialogs, clipboard, notifications, accessibility tree |
 | M7 | | `kiln init/dev/build/check`, hot reload, DevTools over CDP |
 | M8 | | **Preact runs unmodified.** Tailwind works. |
@@ -269,6 +269,24 @@ parley = { version = "0.10", features = ["complex-scripts"] }
 That costs 3.7 MB of dictionary data — a release binary goes from 25.1 MB to 28.8 MB. Worth paying, and stated rather than buried.
 
 Still missing: **`text-overflow: ellipsis` clips without drawing the ellipsis.** It isn't implemented in Parley, so it isn't a flag — it needs truncation support upstream first.
+
+## Animation
+
+CSS transitions and `@keyframes` run off a real clock. In a window it advances from an `Instant` and re-requests a frame while anything is animating, so animation drives redraws rather than input.
+
+Headless, the clock is a flag — which is what makes animation testable at all:
+
+```bash
+cargo run -- render examples/animation.html out.png --at 1.0
+```
+
+<p align="center">
+  <img src="assets/animation.png" width="720" alt="Three animations sampled one second in: a bar half-widened with its colour interpolated between amber and mint, a box translated halfway and faded, and a bar at its keyframe height peak.">
+</p>
+
+That is a single deterministic frame one second into a two-second timeline. The bar is 270px through a 120→420 transition with its background interpolated between amber and mint; the second box has translated 160 of 320px and faded to 0.6 opacity; the third is at its `@keyframes` height peak.
+
+`tests/golden/animation.txt` is blessed at exactly that instant, so a frozen clock — which is what this was before M4, with `resolve()` hardcoded to time zero — fails the build instead of quietly rendering the first frame forever.
 
 ## Tests read text, not pixels
 
