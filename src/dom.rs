@@ -657,6 +657,22 @@ impl Dom {
         children.get(index + 1).copied()
     }
 
+    pub fn root(&self) -> usize {
+        self.document.borrow().root_node().id
+    }
+
+    pub fn attributes(&self, node_id: usize) -> Vec<String> {
+        let document = self.document.borrow();
+        let Some(element) = document.get_node(node_id).and_then(|node| node.element_data()) else {
+            return Vec::new();
+        };
+        element
+            .attrs
+            .iter()
+            .flat_map(|attr| [attr.name.local.to_string(), attr.value.to_string()])
+            .collect()
+    }
+
     pub fn children(&self, node_id: usize) -> Vec<usize> {
         self.document
             .borrow()
@@ -813,6 +829,27 @@ impl Dom {
         ];
 
         if let Some(style) = node.primary_styles() {
+            let display = style.clone_display();
+            let outside = keyword(&display.outside());
+            let inside = keyword(&display.inside());
+            out.push("display".into());
+            out.push(if display.is_none() {
+                "none".to_string()
+            } else {
+                match (outside.as_str(), inside.as_str()) {
+                    ("block", "flow") => "block".to_string(),
+                    ("block", "flow-root") => "flow-root".to_string(),
+                    ("block", "flex") => "flex".to_string(),
+                    ("block", "grid") => "grid".to_string(),
+                    ("block", "table") => "table".to_string(),
+                    ("inline", "flow") => "inline".to_string(),
+                    ("inline", "flow-root") => "inline-block".to_string(),
+                    ("inline", "flex") => "inline-flex".to_string(),
+                    ("inline", "grid") => "inline-grid".to_string(),
+                    _ => format!("{outside} {inside}"),
+                }
+            });
+
             out.push("position".into());
             out.push(keyword(&style.clone_position()));
             out.push("overflow-x".into());

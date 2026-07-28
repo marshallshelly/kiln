@@ -10,14 +10,14 @@
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/marshallshelly/kiln?style=flat-square&color=0B1226&label=stars" alt="Stars">
-  <img src="https://img.shields.io/badge/status-M0--M6%20%2B%20Preact--F5A93C?style=flat-square" alt="Status: M0 to M6 plus Preact">
+  <img src="https://img.shields.io/badge/status-M0--M7%20%2B%20Preact--F5A93C?style=flat-square" alt="Status: M0 to M7 plus Preact">
   <img src="https://img.shields.io/badge/built%20with-Rust-0B1226?style=flat-square" alt="Built with Rust">
   <img src="https://img.shields.io/badge/license-Apache--2.0-0B1226?style=flat-square" alt="Apache-2.0 license">
 </p>
 
 <p align="center">
   <strong>Native desktop apps from real HTML, CSS, and TypeScript &middot; rendered by our own engine &middot; no Chromium, no WebView</strong><br>
-  <sub><strong>This is early.</strong> HTML and CSS render, and JavaScript can drive the DOM — a counter app works. The CSS surface is partial and parts of the toolkit (packaging, DevTools, hot reload) are not built. Read <a href="#status">Status</a> before you get excited.</sub>
+  <sub><strong>This is early.</strong> HTML and CSS render, and JavaScript can drive the DOM — a counter app works. The CSS surface is partial and parts of the toolkit (packaging, signing, updates) are not built. Read <a href="#status">Status</a> before you get excited.</sub>
 </p>
 
 ---
@@ -45,8 +45,8 @@ Honesty is the product, so here is the unflattering version.
 | **M4** | ✅ | transitions, `@keyframes`, custom properties, `@media` — driven by a real animation clock |
 | **M5** | ✅ | scrolling, focus, keyboard nav, text input — IME wired but unverified |
 | **M6** | ✅ | accessibility tree, native menus, tray, clipboard, dialogs, notifications |
-| M7 | ◐ | `init`, `dev` with reload on save, `check`, `build`; DevTools over CDP still to do |
-| M8 | | **Preact runs unmodified.** Tailwind works. |
+| **M7** | ✅ | `init`, `dev` with reload on save, `check`, `build`, DevTools over CDP |
+| M8 | next | **Preact runs unmodified.** Tailwind works. |
 | M9 | | packaging: `.app`/`.dmg`/`.msi`/`.deb`, signing, notarization |
 | M10 | | automation server, record/replay, deterministic screenshots |
 | M11 | | static TypeScript compilation tier |
@@ -141,6 +141,17 @@ $ kiln render my-app/index.html out.png --click "#inc"   # headless
 ```
 
 `kiln dev` watches the entry and every script it references. Reload rebuilds the document while keeping the window — it is a fast reload, not state-preserving hot module replacement, and that distinction is deliberate rather than aspirational.
+
+### DevTools attaches over CDP
+
+```console
+$ kiln dev examples/counter.html --inspect
+devtools listening on 127.0.0.1:9223
+```
+
+`Runtime.evaluate`, `DOM.getDocument`, `DOM.getOuterHTML`, `DOM.getBoxModel`, `CSS.getComputedStyleForNode` and the discovery endpoints are served, so you can inspect a running Kiln app with the tool you already use.
+
+The document is not `Send`, which shaped the design: `tungstenite` is blocking, so a connection is a thread, and those threads hand work to the event loop over a channel rather than touching the DOM. That also keeps the protocol layer a plain function over the document — which is how it gets tested without a socket.
 
 <p align="center">
   <img src="assets/m3.png" width="620" alt="A counter app: minus and plus buttons either side of the number 5">

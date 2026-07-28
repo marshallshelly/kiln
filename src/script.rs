@@ -1090,6 +1090,31 @@ impl Script {
             .unwrap_or(0)
     }
 
+    pub fn evaluate(&self, expression: &str) -> Result<String> {
+        let value = self
+            .context
+            .with(|ctx| -> rquickjs::Result<String> {
+                let value: rquickjs::Value = ctx.eval(expression)?;
+                if value.is_undefined() {
+                    return Ok("undefined".to_string());
+                }
+                if value.is_null() {
+                    return Ok("null".to_string());
+                }
+                let stringify: Function = ctx
+                    .globals()
+                    .get::<_, Object>("JSON")
+                    .and_then(|json| json.get("stringify"))?;
+                match stringify.call::<_, Option<String>>((value.clone(),)) {
+                    Ok(Some(text)) => Ok(text),
+                    _ => Ok(format!("{value:?}")),
+                }
+            })
+            .map_err(|e| anyhow!("evaluate: {e}"))?;
+        self.drain();
+        Ok(value)
+    }
+
     pub fn dispatch_menu(&self, id: &str) -> Result<()> {
         self.context
             .with(|ctx| -> rquickjs::Result<()> {

@@ -1,4 +1,5 @@
 mod check;
+mod devtools;
 mod dom;
 mod events;
 mod native;
@@ -80,6 +81,7 @@ struct App {
     size: (u32, u32),
     started: std::time::Instant,
     watch: Option<Watch>,
+    devtools: Option<devtools::Devtools>,
     failure: Option<anyhow::Error>,
 }
 
@@ -96,6 +98,7 @@ impl App {
             size: (DEFAULT_WIDTH, DEFAULT_HEIGHT),
             started: std::time::Instant::now(),
             watch: None,
+            devtools: None,
             failure: None,
         }
     }
@@ -215,7 +218,13 @@ impl App {
 
 impl ApplicationHandler for App {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if self.watch.is_none() {
+        if let Some(devtools) = self.devtools.as_ref() {
+            devtools.pump(&self.dom, &self.script);
+            if let Some(window) = self.window.as_ref() {
+                window.request_redraw();
+            }
+        }
+        if self.watch.is_none() && self.devtools.is_none() {
             return;
         }
         self.poll_reload(event_loop);
@@ -316,7 +325,7 @@ fn load(input: &str) -> Result<(Dom, Script, std::rc::Rc<native::Native>)> {
     Ok((dom, script, native))
 }
 
-fn open(input: &str, watch: bool) -> Result<()> {
+fn open(input: &str, watch: bool, inspect: Option<u16>) -> Result<()> {
     let (dom, script, native) = load(input)?;
 
     let event_loop = EventLoop::new().context("create event loop")?;
@@ -325,6 +334,13 @@ fn open(input: &str, watch: bool) -> Result<()> {
     let watcher = watch.then(|| Watch::new(input, &dom));
     let mut app = App::new(dom, script, native);
     app.watch = watcher;
+
+    if let Some(port) = inspect {
+        let server = devtools::Devtools::start(port)?;
+        println!("devtools listening on 127.0.0.1:{}", server.port);
+        println!("  {}", server.url());
+        app.devtools = Some(server);
+    }
     if watch {
         println!("watching {input} — edit and save to reload");
     }
@@ -616,11 +632,21 @@ fn check(inputs: &[String]) -> Result<()> {
     Ok(())
 }
 
+fn inspect_port(args: &[String]) -> Option<u16> {
+    let index = args.iter().position(|arg| arg == "--inspect")?;
+    Some(
+        args.get(index + 1)
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(9223),
+    )
+}
+
 fn usage() -> ! {
     eprintln!("usage:");
     eprintln!("  kiln init   <name>                 scaffold a new app");
     eprintln!("  kiln open   <page.html>            open in a native window");
     eprintln!("  kiln dev    <page.html>            open and reload on save");
+    eprintln!("        [--inspect [port]]           serve DevTools over CDP (default 9223)");
     eprintln!("  kiln check  <page.html|style.css>...");
     eprintln!("                                     report unsupported CSS");
     eprintln!("  kiln build  <page.html> [outdir]   bundle the app and its scripts");
@@ -637,11 +663,11 @@ fn main() -> Result<()> {
 
     match args.first().map(String::as_str) {
         Some("open") => match args.get(1) {
-            Some(input) => open(input, false),
+            Some(input) => open(input, false, inspect_port(&args)),
             None => usage(),
         },
         Some("dev") => match args.get(1) {
-            Some(input) => open(input, true),
+            Some(input) => open(input, true, inspect_port(&args)),
             None => usage(),
         },
         Some("render") => {
@@ -783,6 +809,75 @@ mod snapshot_tests {
     #[test]
     fn animation() {
         golden_at("animation", &[], Some(1.0));
+    }
+
+    #[test]
+    fn devtools_protocol_answers_the_core_domains() {
+        use serde_json::json;
+
+        let (dom, script, _native) = load("examples/counter.html").unwrap();
+        dom.settle(&script);
+
+        let call = |method: &str, params: serde_json::Value| {
+            devtools::handle(method, &params, &dom, &script)
+        };
+
+        // Runtime.evaluate runs against the live document.
+        let result = call("Runtime.evaluate", json!({ "expression": "1 + 1" }));
+        assert_eq!(result["result"]["value"], json!(2));
+        assert_eq!(result["result"]["type"], "number");
+
+        let result = call(
+            "Runtime.evaluate",
+            json!({ "expression": "document.querySelector('#count').textContent" }),
+        );
+        assert_eq!(result["result"]["value"], json!("0"));
+
+        // A thrown expression reports rather than panicking.
+        let result = call("Runtime.evaluate", json!({ "expression": "nope.nope" }));
+        assert!(result["exceptionDetails"].is_object());
+
+        // DOM.getDocument returns a tree DevTools can render.
+        let document = call("DOM.getDocument", json!({ "depth": -1 }));
+        let root = &document["root"];
+        assert_eq!(root["nodeName"], "#document");
+        assert!(!root["children"].as_array().unwrap().is_empty());
+
+        // Element nodes carry their attributes as CDP's flat name/value array.
+        let counter = dom.query_selector("#count").unwrap();
+        let html = call("DOM.getOuterHTML", json!({ "nodeId": counter }));
+        assert_eq!(html["outerHTML"], "<div id=\"count\">0</div>");
+
+        // CSS.getComputedStyleForNode is the styles pane.
+        let styles = call("CSS.getComputedStyleForNode", json!({ "nodeId": counter }));
+        let names: Vec<&str> = styles["computedStyle"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|entry| entry["name"].as_str().unwrap())
+            .collect();
+        assert!(names.contains(&"display"), "styles pane needs display");
+        assert!(names.contains(&"position"), "styles pane needs position");
+
+        // DOM.getBoxModel drives the layout overlay.
+        let box_model = call("DOM.getBoxModel", json!({ "nodeId": counter }));
+        assert!(box_model["model"]["width"].as_f64().unwrap() > 0.0);
+
+        // The handshake calls DevTools makes on connect must not error.
+        for method in [
+            "Page.enable",
+            "DOM.enable",
+            "CSS.enable",
+            "Runtime.enable",
+            "Page.getFrameTree",
+            "Target.getTargetInfo",
+        ] {
+            assert!(call(method, json!({})).is_object(), "{method} failed");
+        }
+        assert_eq!(
+            call("Page.getFrameTree", json!({}))["frameTree"]["frame"]["id"],
+            devtools::FRAME_ID
+        );
     }
 
     #[test]
