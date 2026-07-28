@@ -210,7 +210,9 @@ fn windows(entry: &Path, dom: &crate::dom::Dom, options: &Options) -> Result<Pat
         .arg("-o")
         .arg(&msi)
         .status()
-        .context("run wix — install the WiX Toolset (dotnet tool install --global wix)")?;
+        .context(
+            "run wix — install the v4 toolset: dotnet tool install --global wix --version 4.0.6",
+        )?;
     if !status.success() {
         bail!("wix build failed for {}", msi.display());
     }

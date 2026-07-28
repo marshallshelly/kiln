@@ -86,9 +86,13 @@ jobs:
             libx11-dev libxkbcommon-dev libwayland-dev \
             libxcb-shape0-dev libxcb-xfixes0-dev libssl-dev pkg-config dpkg-dev
 
+      # Pinned to v4. WiX v6 and later are gated behind the Open Source
+      # Maintenance Fee EULA, which is a licensing decision for whoever runs
+      # this, not something CI should accept silently. The .wxs targets the v4
+      # schema in any case.
       - name: Install WiX
         if: runner.os == 'Windows'
-        run: dotnet tool install --global wix
+        run: dotnet tool install --global wix --version 4.0.6
 
       - run: cargo build --release --locked
 
