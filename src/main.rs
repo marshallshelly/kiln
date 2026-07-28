@@ -91,7 +91,7 @@ impl App {
         if !self.renderer.is_active() {
             return;
         }
-        self.dom.resolve();
+        self.dom.settle(&self.script);
         let Self {
             renderer,
             dom,
@@ -159,6 +159,9 @@ fn load(input: &str) -> Result<(Dom, Script)> {
     let dom = Dom::from_html(&html, DEFAULT_WIDTH, DEFAULT_HEIGHT, 1.0);
 
     let script = Script::new(dom.clone()).context("start script runtime")?;
+
+    dom.resolve();
+
     for source in dom.scripts() {
         match source {
             dom::Script::Inline(code) => script.eval(&code)?,
@@ -200,9 +203,7 @@ fn render(
 
     let mut targets: Vec<(f32, f32)> = Vec::new();
 
-    if !clicks.is_empty() || !points.is_empty() || !hovers.is_empty() {
-        dom.resolve();
-    }
+    dom.settle(&script);
 
     for selector in hovers {
         let node = dom
@@ -214,7 +215,7 @@ fn render(
         for dispatch in dom.drive(events::pointer_move(x, y)) {
             script.dispatch(&dispatch)?;
         }
-        dom.resolve();
+        dom.settle(&script);
     }
 
     for selector in clicks {
@@ -244,7 +245,7 @@ fn render(
                 script.dispatch(&dispatch)?;
             }
         }
-        dom.resolve();
+        dom.settle(&script);
     }
 
     dom.write_png(output, DEFAULT_WIDTH, DEFAULT_HEIGHT, 1.0)?;

@@ -185,6 +185,22 @@ Getting there needed three specific things, each worth knowing if you're porting
 - **`onclick` must exist as a property.** Preact lowercases an event name only if `"onclick" in element`; otherwise it registers the type as `"Click"` and nothing ever matches. Handlers are also called with `this` bound to the node, which its event proxy relies on.
 - **The microtask queue has to be drained.** Preact schedules re-renders on a promise. Without draining QuickJS's job queue after every script evaluation and event dispatch, state updates run and the screen never changes.
 
+## Base UI runs
+
+Unstyled component primitives work too. [Base UI](https://base-ui.com)'s `Menu` — trigger, portal, positioner, popup — renders and opens, on `preact/compat` rather than react-dom:
+
+<p align="center">
+  <img src="assets/baseui.png" width="620" alt="A Base UI dropdown menu open below its trigger, with Rename, Duplicate and Delete items">
+</p>
+
+Getting there needed real layout geometry rather than stubs:
+
+- **`getBoundingClientRect`, `offsetWidth`, `clientWidth`, `scrollWidth`, `scrollTop`** report actual values from the layout tree — border box, padding box, content size and scroll offset kept distinct rather than collapsed into one number.
+- **`ResizeObserver` is real.** It runs off the layout pass: after each relayout, observed elements whose content box changed get an entry. Layout re-runs until observers stop firing, bounded at four passes like a browser's resize-loop guard.
+- **Reading geometry forces a synchronous layout flush.** This is the one that mattered. Floating-element libraries measure inside a timer, before the next frame — without a flush every rect read back as `0x0` and popups positioned themselves at the origin.
+
+`MutationObserver` and `IntersectionObserver` are still inert stubs, and `getComputedStyle` returns empty strings. Collision detection and flipping near a viewport edge are untested.
+
 The headless path is not a debugging convenience. It's the deterministic reference renderer — what makes golden-image tests, CI on a machine with no display, and automated verification possible. Both paths share one document and one paint call, so they cannot drift.
 
 ## Building

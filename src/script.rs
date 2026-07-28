@@ -117,20 +117,23 @@ class Element extends Node {
   querySelectorAll(selector) { return __kiln.querySelectorAllIn(this.__id, selector).map(__wrap); }
   getBoundingClientRect() {
     const r = __kiln.rect(this.__id);
-    if (!r) return { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0 };
-    return { x: r[0], y: r[1], left: r[0], top: r[1], width: r[2], height: r[3],
-             right: r[0] + r[2], bottom: r[1] + r[3] };
+    if (!r) return __emptyRect();
+    return __rect(r[0], r[1], r[2], r[3]);
   }
   getClientRects() { return [this.getBoundingClientRect()]; }
-  get offsetWidth() { return this.getBoundingClientRect().width; }
-  get offsetHeight() { return this.getBoundingClientRect().height; }
-  get clientWidth() { return this.getBoundingClientRect().width; }
-  get clientHeight() { return this.getBoundingClientRect().height; }
-  get scrollTop() { return 0; }
-  set scrollTop(_v) {}
-  get scrollLeft() { return 0; }
+  get offsetWidth() { const m = __kiln.boxMetrics(this.__id); return m ? m[0] : 0; }
+  get offsetHeight() { const m = __kiln.boxMetrics(this.__id); return m ? m[1] : 0; }
+  get clientWidth() { const m = __kiln.boxMetrics(this.__id); return m ? m[2] : 0; }
+  get clientHeight() { const m = __kiln.boxMetrics(this.__id); return m ? m[3] : 0; }
+  get scrollWidth() { const m = __kiln.boxMetrics(this.__id); return m ? m[4] : 0; }
+  get scrollHeight() { const m = __kiln.boxMetrics(this.__id); return m ? m[5] : 0; }
+  get scrollLeft() { const m = __kiln.boxMetrics(this.__id); return m ? m[6] : 0; }
   set scrollLeft(_v) {}
-  get scrollHeight() { return this.getBoundingClientRect().height; }
+  get scrollTop() { const m = __kiln.boxMetrics(this.__id); return m ? m[7] : 0; }
+  set scrollTop(_v) {}
+  get offsetTop() { return this.getBoundingClientRect().top; }
+  get offsetLeft() { return this.getBoundingClientRect().left; }
+  get offsetParent() { return this.parentElement; }
   get shadowRoot() { return null; }
   get isContentEditable() { return false; }
   get style() {
@@ -139,6 +142,16 @@ class Element extends Node {
     return proxy;
   }
 }
+
+function __rect(x, y, width, height) {
+  return {
+    x, y, left: x, top: y, width, height,
+    right: x + width, bottom: y + height,
+    toJSON() { return { x, y, left: x, top: y, width, height, right: x + width, bottom: y + height }; },
+  };
+}
+
+function __emptyRect() { return __rect(0, 0, 0, 0); }
 
 function __dashed(name) {
   return String(name).replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
@@ -294,6 +307,9 @@ globalThis.getComputedStyle = () => new Proxy({}, {
     return "";
   },
 });
+Object.defineProperty(globalThis, "innerWidth", { get: () => __kiln.viewportSize()[0] });
+Object.defineProperty(globalThis, "innerHeight", { get: () => __kiln.viewportSize()[1] });
+globalThis.devicePixelRatio = 1;
 globalThis.visualViewport = null;
 
 let __timerId = 0;
@@ -327,13 +343,60 @@ globalThis.__runFrame = () => {
   return pending.length;
 };
 
-class __Observer {
-  constructor(cb) { this.__cb = cb; }
+let __observerSeq = 0;
+const __observers = new Map();
+
+class ResizeObserver {
+  constructor(callback) {
+    this.__id = ++__observerSeq;
+    __observers.set(this.__id, { callback, targets: new Map() });
+  }
+  observe(element) {
+    const entry = __observers.get(this.__id);
+    if (entry && element) entry.targets.set(element.__id, null);
+  }
+  unobserve(element) {
+    const entry = __observers.get(this.__id);
+    if (entry && element) entry.targets.delete(element.__id);
+  }
+  disconnect() { __observers.delete(this.__id); }
+  takeRecords() { return []; }
+}
+globalThis.ResizeObserver = ResizeObserver;
+
+globalThis.__runObservers = () => {
+  let delivered = 0;
+  for (const observer of [...__observers.values()]) {
+    const entries = [];
+    for (const [nodeId, previous] of observer.targets) {
+      const m = __kiln.boxMetrics(nodeId);
+      if (!m) continue;
+      const width = m[2];
+      const height = m[3];
+      if (previous && previous.width === width && previous.height === height) continue;
+      observer.targets.set(nodeId, { width, height });
+      entries.push({
+        target: __wrap(nodeId),
+        contentRect: __rect(0, 0, width, height),
+        borderBoxSize: [{ inlineSize: m[0], blockSize: m[1] }],
+        contentBoxSize: [{ inlineSize: width, blockSize: height }],
+        devicePixelContentBoxSize: [{ inlineSize: width, blockSize: height }],
+      });
+    }
+    if (entries.length) {
+      delivered += entries.length;
+      observer.callback(entries, observer);
+    }
+  }
+  return delivered;
+};
+
+class __InertObserver {
+  constructor(callback) { this.__callback = callback; }
   observe() {} unobserve() {} disconnect() {} takeRecords() { return []; }
 }
-globalThis.ResizeObserver = __Observer;
-globalThis.MutationObserver = __Observer;
-globalThis.IntersectionObserver = __Observer;
+globalThis.MutationObserver = __InertObserver;
+globalThis.IntersectionObserver = __InertObserver;
 
 globalThis.__dispatch = (path, type, detail) => {
   let fired = false;
@@ -440,7 +503,9 @@ impl Script {
                 bind!("matches", d, move |id: usize, sel: String| d.matches(id, &sel));
                 bind!("focus", d, move |id: Option<usize>| d.focus(id));
                 bind!("activeElement", d, move || d.active_element());
-                bind!("rect", d, move |id: usize| d.rect(id));
+                bind!("rect", d, move |id: usize| d.client_rect(id));
+                bind!("boxMetrics", d, move |id: usize| d.box_metrics(id));
+                bind!("viewportSize", d, move || d.viewport_size());
 
                 kiln.set(
                     "log",
@@ -478,6 +543,20 @@ impl Script {
                 run.call(())
             })
             .unwrap_or(0)
+    }
+
+    pub fn run_observers(&self) -> usize {
+        let delivered = self
+            .context
+            .with(|ctx| -> rquickjs::Result<usize> {
+                let run: Function = ctx.globals().get("__runObservers")?;
+                run.call(())
+            })
+            .unwrap_or(0);
+        if delivered > 0 {
+            self.drain();
+        }
+        delivered
     }
 
     pub fn drain(&self) {

@@ -41,6 +41,21 @@ impl Dom {
         self.document.borrow_mut().resolve(0.0);
     }
 
+    pub fn flush_layout(&self) {
+        self.document.borrow_mut().resolve(0.0);
+    }
+
+    pub fn settle(&self, script: &crate::script::Script) {
+        const MAX_PASSES: usize = 4;
+        for _ in 0..MAX_PASSES {
+            self.resolve();
+            if script.run_observers() == 0 {
+                return;
+            }
+        }
+        self.resolve();
+    }
+
     pub fn paint(&self, scene: &mut impl anyrender::PaintScene, scale: f64, width: u32, height: u32) {
         blitz_paint::paint_scene(scene, &mut self.document.borrow_mut(), scale, width, height, 0, 0);
     }
@@ -258,13 +273,48 @@ impl Dom {
         self.document.borrow().get_focussed_node_id()
     }
 
-    pub fn rect(&self, node_id: usize) -> Option<Vec<f32>> {
+    pub fn client_rect(&self, node_id: usize) -> Option<Vec<f64>> {
+        self.flush_layout();
+        let rect = self.document.borrow().get_client_bounding_rect(node_id)?;
+        Some(vec![rect.x, rect.y, rect.width, rect.height])
+    }
+
+    pub fn box_metrics(&self, node_id: usize) -> Option<Vec<f64>> {
+        self.flush_layout();
         let document = self.document.borrow();
         let node = document.get_node(node_id)?;
-        let size = node.final_layout.size;
-        let position = node.absolute_position(0.0, 0.0);
-        Some(vec![position.x, position.y, size.width, size.height])
+        let layout = &node.unrounded_layout;
+
+        let border_width = f64::from(layout.size.width);
+        let border_height = f64::from(layout.size.height);
+
+        let client_width = (border_width
+            - f64::from(layout.border.left + layout.border.right)
+            - f64::from(layout.scrollbar_size.width))
+        .max(0.0);
+        let client_height = (border_height
+            - f64::from(layout.border.top + layout.border.bottom)
+            - f64::from(layout.scrollbar_size.height))
+        .max(0.0);
+
+        Some(vec![
+            border_width,
+            border_height,
+            client_width,
+            client_height,
+            f64::from(layout.content_size.width).max(client_width),
+            f64::from(layout.content_size.height).max(client_height),
+            node.scroll_offset.x,
+            node.scroll_offset.y,
+        ])
     }
+
+    pub fn viewport_size(&self) -> Vec<f64> {
+        let document = self.document.borrow();
+        let (width, height) = document.viewport().window_size;
+        vec![f64::from(width), f64::from(height)]
+    }
+
 
     pub fn body(&self) -> Option<usize> {
         self.query_selector("body")
