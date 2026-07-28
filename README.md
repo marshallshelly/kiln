@@ -11,6 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/github/stars/marshallshelly/kiln?style=flat-square&color=0B1226&label=stars" alt="Stars">
   <img src="https://img.shields.io/badge/status-M0--M8--F5A93C?style=flat-square" alt="Status: M0 to M8">
+  <img src="https://github.com/marshallshelly/kiln/actions/workflows/ci.yml/badge.svg" alt="CI">
   <img src="https://img.shields.io/badge/built%20with-Rust-0B1226?style=flat-square" alt="Built with Rust">
   <img src="https://img.shields.io/badge/license-Apache--2.0-0B1226?style=flat-square" alt="Apache-2.0 license">
 </p>
@@ -462,12 +463,23 @@ The bundle carries the Kiln runtime, your page renamed to `index.html`, and ever
 
 ## Building
 
-Requires a recent Rust toolchain. No other system dependencies.
+Requires a recent Rust toolchain. On Linux you also need GTK, `libxdo` and
+appindicator for the native menu, tray and dialog surfaces, plus X11 and
+Wayland headers for the window.
 
 ```console
 $ cargo build
+$ cargo test
 $ cargo clippy --all-targets --all-features --locked -- -D warnings
 ```
+
+CI builds and tests on macOS, Linux and Windows, and packages a `.dmg` on
+macOS. No test paints, so none of them needs a GPU or a display.
+
+Tree snapshots record box sizes and therefore only *compare* on macOS, where
+they were blessed — but they still run everywhere. The CSS report, the
+accessibility tree and the menu model are identical on every platform and are
+asserted on all three.
 
 ## Contributing
 
