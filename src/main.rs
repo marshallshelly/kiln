@@ -21,6 +21,54 @@ use script::Script;
 const DEFAULT_WIDTH: u32 = 1000;
 const DEFAULT_HEIGHT: u32 = 700;
 
+struct Watch {
+    entry: std::path::PathBuf,
+    stamps: Vec<(std::path::PathBuf, Option<std::time::SystemTime>)>,
+}
+
+impl Watch {
+    fn new(entry: &str, dom: &Dom) -> Self {
+        let entry = std::path::PathBuf::from(entry);
+        let mut watch = Self {
+            entry,
+            stamps: Vec::new(),
+        };
+        watch.stamps = watch.stamp(dom);
+        watch
+    }
+
+    fn sources(&self, dom: &Dom) -> Vec<std::path::PathBuf> {
+        let base = self
+            .entry
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new("."));
+        let mut paths = vec![self.entry.clone()];
+        for source in dom.scripts() {
+            if let dom::Script::Src(src) = source {
+                paths.push(base.join(src));
+            }
+        }
+        paths
+    }
+
+    fn stamp(&self, dom: &Dom) -> Vec<(std::path::PathBuf, Option<std::time::SystemTime>)> {
+        self.sources(dom)
+            .into_iter()
+            .map(|path| {
+                let stamp = std::fs::metadata(&path).and_then(|m| m.modified()).ok();
+                (path, stamp)
+            })
+            .collect()
+    }
+
+    fn changed(&mut self, dom: &Dom) -> bool {
+        let current = self.stamp(dom);
+        let changed = current != self.stamps;
+        self.stamps = current;
+        changed
+    }
+}
+
 struct App {
     native: std::rc::Rc<native::Native>,
     window: Option<Arc<Window>>,
@@ -31,6 +79,7 @@ struct App {
     scale: f32,
     size: (u32, u32),
     started: std::time::Instant,
+    watch: Option<Watch>,
     failure: Option<anyhow::Error>,
 }
 
@@ -46,6 +95,7 @@ impl App {
             scale: 1.0,
             size: (DEFAULT_WIDTH, DEFAULT_HEIGHT),
             started: std::time::Instant::now(),
+            watch: None,
             failure: None,
         }
     }
@@ -97,6 +147,39 @@ impl App {
         }
     }
 
+    fn poll_reload(&mut self, event_loop: &ActiveEventLoop) {
+        let Some(watch) = self.watch.as_mut() else {
+            return;
+        };
+        if !watch.changed(&self.dom) {
+            return;
+        }
+
+        let entry = watch.entry.clone();
+        let input = entry.to_string_lossy().into_owned();
+        match load(&input) {
+            Ok((dom, script, native)) => {
+                dom.set_viewport(self.size.0, self.size.1, self.scale);
+                self.dom = dom;
+                self.script = script;
+                self.native = native;
+                if let Some(watch) = self.watch.as_mut() {
+                    watch.stamps = watch.stamp(&self.dom);
+                }
+                if let Err(error) = self.native.realise() {
+                    eprintln!("{error:?}");
+                }
+                println!("reloaded {input}");
+            }
+            Err(error) => eprintln!("reload failed: {error:?}"),
+        }
+
+        if let Some(window) = self.window.as_ref() {
+            window.request_redraw();
+        }
+        let _ = event_loop;
+    }
+
     fn pump_menu(&mut self) {
         for id in self.native.drain_menu_events() {
             if let Err(error) = self.script.dispatch_menu(&id) {
@@ -131,6 +214,16 @@ impl App {
 }
 
 impl ApplicationHandler for App {
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if self.watch.is_none() {
+            return;
+        }
+        self.poll_reload(event_loop);
+        event_loop.set_control_flow(ControlFlow::WaitUntil(
+            std::time::Instant::now() + std::time::Duration::from_millis(250),
+        ));
+    }
+
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.window.is_some() {
             return;
@@ -223,13 +316,18 @@ fn load(input: &str) -> Result<(Dom, Script, std::rc::Rc<native::Native>)> {
     Ok((dom, script, native))
 }
 
-fn open(input: &str) -> Result<()> {
+fn open(input: &str, watch: bool) -> Result<()> {
     let (dom, script, native) = load(input)?;
 
     let event_loop = EventLoop::new().context("create event loop")?;
     event_loop.set_control_flow(ControlFlow::Wait);
 
+    let watcher = watch.then(|| Watch::new(input, &dom));
     let mut app = App::new(dom, script, native);
+    app.watch = watcher;
+    if watch {
+        println!("watching {input} — edit and save to reload");
+    }
     event_loop.run_app(&mut app).context("run event loop")?;
 
     match app.failure {
@@ -456,6 +554,44 @@ fn init(name: &str) -> Result<()> {
     Ok(())
 }
 
+fn build(input: &str, out: &str) -> Result<()> {
+    let entry = std::path::Path::new(input);
+    let base = entry.parent().unwrap_or_else(|| std::path::Path::new("."));
+    let out = std::path::Path::new(out);
+
+    let report = check::check_path(entry)?;
+    print!("\n{}", check::render_report(entry, &report));
+
+    let (dom, _script, _native) = load(input)?;
+
+    std::fs::create_dir_all(out).with_context(|| format!("create {}", out.display()))?;
+    let mut copied = 0usize;
+
+    let name = entry
+        .file_name()
+        .context("entry has no file name")?;
+    std::fs::copy(entry, out.join(name))
+        .with_context(|| format!("copy {}", entry.display()))?;
+    copied += 1;
+
+    for source in dom.scripts() {
+        let dom::Script::Src(src) = source else {
+            continue;
+        };
+        let from = base.join(&src);
+        let to = out.join(&src);
+        if let Some(parent) = to.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("create {}", parent.display()))?;
+        }
+        std::fs::copy(&from, &to).with_context(|| format!("copy {}", from.display()))?;
+        copied += 1;
+    }
+
+    println!("  {} files -> {}\n", copied, out.display());
+    Ok(())
+}
+
 fn check(inputs: &[String]) -> Result<()> {
     let mut total = check::Report::default();
     let mut out = String::from("\n");
@@ -482,16 +618,17 @@ fn check(inputs: &[String]) -> Result<()> {
 
 fn usage() -> ! {
     eprintln!("usage:");
-    eprintln!("  kiln open   <page.html>            open in a native window");
-    eprintln!("  kiln render <page.html> [out.png]");
-    eprintln!("        [--click <selector>] [--click-at <x,y>] [--hover <selector>]");
-    eprintln!("        [--snapshot <out.txt>] [--at <seconds>]");
-    eprintln!("        [--scroll <selector,dx,dy>] [--type <text>] [--press <key>]");
-    eprintln!("        [--a11y <out.txt>] [--menu <out.txt>]");
     eprintln!("  kiln init   <name>                 scaffold a new app");
+    eprintln!("  kiln open   <page.html>            open in a native window");
+    eprintln!("  kiln dev    <page.html>            open and reload on save");
     eprintln!("  kiln check  <page.html|style.css>...");
     eprintln!("                                     report unsupported CSS");
-    eprintln!("                                     render headless to a PNG");
+    eprintln!("  kiln build  <page.html> [outdir]   bundle the app and its scripts");
+    eprintln!("  kiln render <page.html> [out.png]  render headless to a PNG");
+    eprintln!("        [--click <selector>] [--click-at <x,y>] [--hover <selector>]");
+    eprintln!("        [--type <text>] [--press <key>] [--scroll <selector,dx,dy>]");
+    eprintln!("        [--at <seconds>]");
+    eprintln!("        [--snapshot <out.txt>] [--a11y <out.txt>] [--menu <out.txt>]");
     std::process::exit(2)
 }
 
@@ -500,7 +637,11 @@ fn main() -> Result<()> {
 
     match args.first().map(String::as_str) {
         Some("open") => match args.get(1) {
-            Some(input) => open(input),
+            Some(input) => open(input, false),
+            None => usage(),
+        },
+        Some("dev") => match args.get(1) {
+            Some(input) => open(input, true),
             None => usage(),
         },
         Some("render") => {
@@ -537,6 +678,10 @@ fn main() -> Result<()> {
         }
         Some("init") => match args.get(1) {
             Some(name) => init(name),
+            None => usage(),
+        },
+        Some("build") => match args.get(1) {
+            Some(input) => build(input, args.get(2).map_or("dist", |s| s.as_str())),
             None => usage(),
         },
         Some("check") => {
@@ -638,6 +783,44 @@ mod snapshot_tests {
     #[test]
     fn animation() {
         golden_at("animation", &[], Some(1.0));
+    }
+
+    #[test]
+    fn watch_notices_the_entry_and_its_scripts() {
+        let dir = std::env::temp_dir().join("kiln-watch-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let entry = dir.join("index.html");
+        let script = dir.join("app.js");
+        std::fs::write(&script, "globalThis.x = 1;\n").unwrap();
+        std::fs::write(
+            &entry,
+            "<html><body><script src=\"app.js\"></script></body></html>",
+        )
+        .unwrap();
+
+        let (dom, _script, _native) = load(entry.to_str().unwrap()).unwrap();
+        let mut watch = Watch::new(entry.to_str().unwrap(), &dom);
+
+        // The referenced script is watched, not just the entry.
+        assert_eq!(watch.sources(&dom).len(), 2);
+        assert!(!watch.changed(&dom), "nothing changed yet");
+
+        // mtime has second granularity on some filesystems, so move it
+        // explicitly rather than racing the clock.
+        let past = std::time::SystemTime::now() - std::time::Duration::from_secs(5);
+        std::fs::write(&script, "globalThis.x = 2;\n").unwrap();
+        filetime_set(&script, past);
+        assert!(watch.changed(&dom), "editing a script should be noticed");
+        assert!(!watch.changed(&dom), "and only once");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn filetime_set(path: &std::path::Path, when: std::time::SystemTime) {
+        let file = std::fs::OpenOptions::new().write(true).open(path).unwrap();
+        file.set_modified(when).unwrap();
     }
 
     #[test]

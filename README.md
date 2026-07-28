@@ -45,7 +45,7 @@ Honesty is the product, so here is the unflattering version.
 | **M4** | ✅ | transitions, `@keyframes`, custom properties, `@media` — driven by a real animation clock |
 | **M5** | ✅ | scrolling, focus, keyboard nav, text input — IME wired but unverified |
 | **M6** | ✅ | accessibility tree, native menus, tray, clipboard, dialogs, notifications |
-| M7 | ◐ | `kiln check` and `kiln init` work; `kiln dev`, hot reload and DevTools still to do |
+| M7 | ◐ | `init`, `dev` with reload on save, `check`, `build`; DevTools over CDP still to do |
 | M8 | | **Preact runs unmodified.** Tailwind works. |
 | M9 | | packaging: `.app`/`.dmg`/`.msi`/`.deb`, signing, notarization |
 | M10 | | automation server, record/replay, deterministic screenshots |
@@ -133,9 +133,14 @@ A silently ignored property is the fastest way to destroy trust in an engine lik
 HTML and CSS render, and JavaScript can drive the DOM.
 
 ```console
-$ cargo run -- open   examples/counter.html    # native window, buttons work
-$ cargo run -- render examples/hello.html out.png   # headless
+$ kiln init   my-app                 # scaffold a working counter
+$ kiln dev    my-app/index.html      # native window, reloads on save
+$ kiln check  my-app/index.html      # report unsupported CSS
+$ kiln build  my-app/index.html dist # bundle the app and its scripts
+$ kiln render my-app/index.html out.png --click "#inc"   # headless
 ```
+
+`kiln dev` watches the entry and every script it references. Reload rebuilds the document while keeping the window — it is a fast reload, not state-preserving hot module replacement, and that distinction is deliberate rather than aspirational.
 
 <p align="center">
   <img src="assets/m3.png" width="620" alt="A counter app: minus and plus buttons either side of the number 5">
