@@ -423,7 +423,37 @@ pub fn check_path(path: &Path) -> Result<Report> {
         }
     }
 
+    check_containing_blocks(path, &mut report);
+
     Ok(report)
+}
+
+/// `position: absolute` is only mispositioned when the containing block is not
+/// the direct parent, which no amount of CSS reading can determine — so this
+/// one rule resolves the document and asks the tree.
+fn check_containing_blocks(path: &Path, report: &mut Report) {
+    let Ok(html) = std::fs::read_to_string(path) else {
+        return;
+    };
+    let dom = crate::dom::Dom::from_html(
+        &html,
+        Some(path),
+        crate::DEFAULT_WIDTH,
+        crate::DEFAULT_HEIGHT,
+        1.0,
+    );
+
+    for element in dom.absolutes_resolved_against_the_wrong_box() {
+        report.findings.push(Finding {
+            code: "KC1203",
+            declaration: "position: absolute".to_string(),
+            hint: "resolves against the parent, not the nearest positioned ancestor",
+            line: 0,
+            column: 0,
+            origin: Some(element),
+            source: None,
+        });
+    }
 }
 
 pub fn render_report(path: &Path, report: &Report) -> String {
@@ -478,8 +508,12 @@ pub fn render_report(path: &Path, report: &Report) -> String {
         if origin.is_some() {
             let _ = writeln!(out, "         {declaration}");
         }
-        let where_ = source.unwrap_or_else(|| path.display().to_string());
-        let _ = writeln!(out, "         {where_}:{line}:{column}");
+        // A structural finding comes from the tree rather than a stylesheet, so
+        // it has no line to point at.
+        if line > 0 {
+            let where_ = source.unwrap_or_else(|| path.display().to_string());
+            let _ = writeln!(out, "         {where_}:{line}:{column}");
+        }
     }
 
     let _ = writeln!(out);

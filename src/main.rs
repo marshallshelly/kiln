@@ -21,8 +21,8 @@ use winit::window::{Window, WindowId};
 use dom::Dom;
 use script::Script;
 
-const DEFAULT_WIDTH: u32 = 1000;
-const DEFAULT_HEIGHT: u32 = 700;
+pub const DEFAULT_WIDTH: u32 = 1000;
+pub const DEFAULT_HEIGHT: u32 = 700;
 
 struct Watch {
     entry: std::path::PathBuf,
@@ -1339,11 +1339,16 @@ mod snapshot_tests {
             }
             let report = check::check_path(&path).unwrap();
 
-            if path.file_name().and_then(|name| name.to_str()) == Some("fixed.html") {
+            let demonstrates_a_gap = matches!(
+                path.file_name().and_then(|name| name.to_str()),
+                Some("fixed.html") | Some("absolute.html")
+            );
+            if demonstrates_a_gap {
                 assert!(
                     !report.findings.is_empty(),
-                    "examples/fixed.html exists to demonstrate the position: fixed gap, \
-                     so check must report it — delete this branch with the rule"
+                    "{} exists to demonstrate a positioning gap, so check must \
+                     report it — drop it from this list with the rule",
+                    path.display()
                 );
                 continue;
             }

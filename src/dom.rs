@@ -54,6 +54,37 @@ fn keyword<T: std::fmt::Debug>(value: &T) -> String {
     result
 }
 
+fn describe(document: &HtmlDocument, node_id: usize) -> String {
+    let Some(element) = document
+        .get_node(node_id)
+        .and_then(|node| node.element_data())
+    else {
+        return node_id.to_string();
+    };
+
+    let attribute = |name: &str| {
+        element
+            .attrs
+            .iter()
+            .find(|attr| attr.name.local.as_ref() == name)
+            .map(|attr| attr.value.to_string())
+    };
+
+    let mut out = element.name.local.to_string();
+    if let Some(id) = attribute("id") {
+        out.push('#');
+        out.push_str(&id);
+    } else if let Some(class) = attribute("class") {
+        let mut classes: Vec<&str> = class.split_ascii_whitespace().collect();
+        classes.sort_unstable();
+        for name in classes {
+            out.push('.');
+            out.push_str(name);
+        }
+    }
+    out
+}
+
 fn quantise(value: f32) -> String {
     let snapped = (f64::from(value) * 4.0).round() / 4.0;
     let snapped = if snapped == 0.0 { 0.0 } else { snapped };
@@ -830,6 +861,84 @@ impl Dom {
         self.flush_layout();
         let rect = self.document.borrow().get_client_bounding_rect(node_id)?;
         Some(vec![rect.x, rect.y, rect.width, rect.height])
+    }
+
+    /// Elements Taffy resolves against the wrong box: `position: absolute` is
+    /// laid out against the direct parent rather than the nearest positioned
+    /// ancestor. Structural rather than a property, so `kiln check` cannot see
+    /// it from CSS alone.
+    ///
+    /// A differing containing block is not by itself an error — the two boxes
+    /// frequently coincide, and then the answer is the same either way. Only a
+    /// difference in the padding box origin actually moves anything, so that is
+    /// what is reported. An element sized against `right`/`bottom` in a
+    /// same-origin but differently-sized containing block is missed, which is
+    /// the safe direction to be wrong in for a tool that must not cry wolf.
+    pub fn absolutes_resolved_against_the_wrong_box(&self) -> Vec<String> {
+        self.flush_layout();
+        let document = self.document.borrow();
+
+        let position_of = |node_id: usize| -> Option<String> {
+            document
+                .get_node(node_id)?
+                .primary_styles()
+                .map(|style| keyword(&style.clone_position()))
+        };
+
+        let padding_box_origin = |node_id: usize| -> Option<(String, String)> {
+            let node = document.get_node(node_id)?;
+            let layout = &node.unrounded_layout;
+            let origin = node.absolute_position(0.0, 0.0);
+            Some((
+                quantise(origin.x + layout.border.left),
+                quantise(origin.y + layout.border.top),
+            ))
+        };
+
+        let root = document.root_node().id;
+        let mut offenders = Vec::new();
+        let mut stack = vec![root];
+
+        while let Some(node_id) = stack.pop() {
+            let Some(node) = document.get_node(node_id) else {
+                continue;
+            };
+            stack.extend(node.children.iter().copied());
+
+            if position_of(node_id).as_deref() != Some("absolute") {
+                continue;
+            }
+            let Some(parent) = node.parent else { continue };
+
+            let mut containing_block = root;
+            let mut ancestor = Some(parent);
+            while let Some(current) = ancestor {
+                if current == root {
+                    break;
+                }
+                if position_of(current)
+                    .as_deref()
+                    .is_some_and(|p| p != "static")
+                {
+                    containing_block = current;
+                    break;
+                }
+                ancestor = document.get_node(current).and_then(|node| node.parent);
+            }
+
+            if containing_block == parent {
+                continue;
+            }
+            if padding_box_origin(containing_block) == padding_box_origin(parent) {
+                continue;
+            }
+
+            offenders.push(describe(&document, node_id));
+        }
+
+        offenders.sort();
+        offenders.dedup();
+        offenders
     }
 
     pub fn scroll_node_to(&self, node_id: usize, x: f64, y: f64) {
