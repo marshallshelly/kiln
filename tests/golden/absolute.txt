@@ -1,0 +1,33 @@
+0 #document
+  0/0 html @ 0,0 1000x636.5 | display:block/flow position:static
+    0/0/0 head @ 0,0 0x0 | display:none/none position:static
+      0/0/0/1 meta charset="utf-8" @ 0,0 0x0 | display:none
+      0/0/0/3 title @ 0,0 0x0 | display:none
+        0/0/0/3/0 "Kiln — position: absolute containing blocks"
+      0/0/0/5 style @ 0,0 0x0 | display:none
+        0/0/0/5/0 <861 chars>
+    0/0/2 body @ 0,0 1000x636.5 | display:block/flow position:static
+      0/0/2/1 h1 @ 24,24 952x27 | display:block/flow position:static
+        0/0/2/1/0 "position: absolute containing blocks"
+      0/0/2/3 p.note @ 24,55 488.75x39 | display:block/flow position:static
+        0/0/2/3/0 "Each mark asks to sit 10px from the top-left of its containing block, which CSS defines as the padding box of the nearest positioned ancestor."
+      0/0/2/5 figure#direct @ 24,114 454x194 | display:block/flow position:relative
+        0/0/2/5/1 figcaption @ 38,107 186x16.5 | display:block/flow position:absolute
+          0/0/2/5/1/0 "direct child of the positioned ancestor"
+        0/0/2/5/3 div.spacer @ 51,141 400x40 | display:block/flow position:static
+        0/0/2/5/5 div#near.mark @ 36,126 60x20 | display:block/flow position:absolute
+      0/0/2/7 figure#nested @ 24,328 454x194 | display:block/flow position:relative
+        0/0/2/7/1 figcaption @ 38,321 197x16.5 | display:block/flow position:absolute
+          0/0/2/7/1/0 "separated from it by an unpositioned div"
+        0/0/2/7/3 div.spacer @ 51,355 400x40 | display:block/flow position:static
+        0/0/2/7/5 div.middle @ 86,395 260x100 | display:block/flow position:static
+          0/0/2/7/5/1 div#far.mark @ 96,405 60x20 | display:block/flow position:absolute
+      0/0/2/9 ul#results @ 24,542 952x70.5 | display:block/flow position:static
+        0/0/2/9/0 li @ 24,542 952x23.5 | display:block/flow position:static
+          0/0/2/9/0/0 "direct 12,12"
+        0/0/2/9/1 li @ 24,566 952x23.5 | display:block/flow position:static
+          0/0/2/9/1/0 "nested 72,77"
+        0/0/2/9/2 li @ 24,589 952x23.5 | display:block/flow position:static
+          0/0/2/9/2/0 "browser-says 12,12"
+      0/0/2/11 script @ 0,0 0x0 | display:none/none position:static
+        0/0/2/11/0 <589 chars>

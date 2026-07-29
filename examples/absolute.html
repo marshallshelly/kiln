@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Kiln — position: absolute containing blocks</title>
+    <style>
+      body {
+        font: 15px/1.5 ui-sans-serif, system-ui, sans-serif;
+        margin: 0;
+        padding: 24px;
+        background: #101418;
+        color: #dde3ea;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 4px;
+      }
+      p.note {
+        margin: 0 0 20px;
+        color: #8b97a6;
+        font-size: 13px;
+        max-width: 62ch;
+      }
+      figure {
+        margin: 0 0 20px;
+        position: relative;
+        padding: 25px;
+        border: 2px solid #37506b;
+        width: 400px;
+        height: 140px;
+        background: #16202b;
+      }
+      figcaption {
+        position: absolute;
+        top: -9px;
+        left: 12px;
+        padding: 0 6px;
+        background: #101418;
+        font-size: 11px;
+        color: #6f8398;
+      }
+      .spacer {
+        height: 40px;
+      }
+      .middle {
+        margin-left: 35px;
+        padding: 30px;
+        width: 200px;
+        height: 40px;
+        background: #1e2c3a;
+      }
+      .mark {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        width: 60px;
+        height: 20px;
+        background: #d1603d;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      li {
+        font-family: ui-monospace, monospace;
+        font-size: 13px;
+        padding: 2px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>position: absolute containing blocks</h1>
+    <p class="note">
+      Each mark asks to sit 10px from the top-left of its containing block,
+      which CSS defines as the padding box of the nearest positioned ancestor.
+    </p>
+
+    <figure id="direct">
+      <figcaption>direct child of the positioned ancestor</figcaption>
+      <div class="spacer"></div>
+      <div class="mark" id="near"></div>
+    </figure>
+
+    <figure id="nested">
+      <figcaption>separated from it by an unpositioned div</figcaption>
+      <div class="spacer"></div>
+      <div class="middle">
+        <div class="mark" id="far"></div>
+      </div>
+    </figure>
+
+    <ul id="results"></ul>
+
+    <script>
+      var results = document.getElementById("results");
+
+      function report(label, value) {
+        var li = document.createElement("li");
+        li.textContent = label + " " + value;
+        results.appendChild(li);
+      }
+
+      function relative(markId, ancestorId) {
+        var mark = document.getElementById(markId).getBoundingClientRect();
+        var ancestor = document.getElementById(ancestorId).getBoundingClientRect();
+        return (
+          Math.round(mark.left - ancestor.left) +
+          "," +
+          Math.round(mark.top - ancestor.top)
+        );
+      }
+
+      report("direct", relative("near", "direct"));
+      report("nested", relative("far", "nested"));
+      report("browser-says", "12,12");
+    </script>
+  </body>
+</html>

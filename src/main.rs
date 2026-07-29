@@ -979,6 +979,11 @@ mod snapshot_tests {
     }
 
     #[test]
+    fn absolute() {
+        golden("absolute", &[]);
+    }
+
+    #[test]
     fn fixed() {
         golden("fixed", &[]);
     }
