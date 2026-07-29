@@ -1,0 +1,65 @@
+0 #document
+  0/0 html @ 0,0 1000x632.75 | display:block/flow position:static
+    0/0/0 head @ 0,0 0x0 | display:none/none position:static
+      0/0/0/1 meta charset="utf-8" @ 0,0 0x0 | display:none
+      0/0/0/3 title @ 0,0 0x0 | display:none
+        0/0/0/3/0 "Kiln — URL and URLSearchParams"
+      0/0/0/5 style @ 0,0 0x0 | display:none
+        0/0/0/5/0 <353 chars>
+    0/0/2 body @ 0,0 1000x632.75 | display:block/flow position:static
+      0/0/2/1 h1 @ 28,28 944x25.5 | display:block/flow position:static
+        0/0/2/1/0 "URL and URLSearchParams"
+      0/0/2/3 p.note @ 28,58 944x41.5 | display:block/flow position:static
+        0/0/2/3/0 "Every line below was checked against Chrome. Bundlers address their assets with"
+        0/0/2/3/1 code @ 28,58 0x0 | display:inline/flow position:static
+          0/0/2/3/1/0 "new URL(\"./x.png\", import.meta.url)"
+        0/0/2/3/2 ", so resolution has to be right rather than approximately right."
+      0/0/2/5 ul#out @ 28,117 944x487.5 | display:block/flow position:static
+        0/0/2/5/0 li @ 28,117 944x21.25 | display:block/flow position:static
+          0/0/2/5/0/0 "absolute https://a.example/x/y?q=1#f"
+        0/0/2/5/1 li @ 28,138 944x21.25 | display:block/flow position:static
+          0/0/2/5/1/0 "relative file:///app/dist/assets/z.png"
+        0/0/2/5/2 li @ 28,159 944x21.25 | display:block/flow position:static
+          0/0/2/5/2/0 "parent file:///app/dist/up.png"
+        0/0/2/5/3 li @ 28,181 944x21.25 | display:block/flow position:static
+          0/0/2/5/3/0 "rooted https://a.example/root.png"
+        0/0/2/5/4 li @ 28,202 944x21.25 | display:block/flow position:static
+          0/0/2/5/4/0 "scheme-relative https://other.example/p"
+        0/0/2/5/5 li @ 28,223 944x21.25 | display:block/flow position:static
+          0/0/2/5/5/0 "sibling file:///app/dist/sibling.js"
+        0/0/2/5/6 li @ 28,244 944x21.25 | display:block/flow position:static
+          0/0/2/5/6/0 "query-only https://a.example/x/y?only=query"
+        0/0/2/5/7 li @ 28,265 944x21.25 | display:block/flow position:static
+          0/0/2/5/7/0 "fragment-only https://a.example/x/y?q=2#frag"
+        0/0/2/5/8 li @ 28,287 944x21.25 | display:block/flow position:static
+          0/0/2/5/8/0 "credentials https://u:p@host.example:8443/b/c?x=1#h"
+        0/0/2/5/9 li @ 28,308 944x21.25 | display:block/flow position:static
+          0/0/2/5/9/0 "dot-segments file:///app/c.js"
+        0/0/2/5/10 li @ 28,329 944x21.25 | display:block/flow position:static
+          0/0/2/5/10/0 "origin https://host.example:8443"
+        0/0/2/5/11 li @ 28,350 944x21.25 | display:block/flow position:static
+          0/0/2/5/11/0 "host host.example:8443"
+        0/0/2/5/12 li @ 28,371 944x21.25 | display:block/flow position:static
+          0/0/2/5/12/0 "hostname host.example"
+        0/0/2/5/13 li @ 28,393 944x21.25 | display:block/flow position:static
+          0/0/2/5/13/0 "port 8443"
+        0/0/2/5/14 li @ 28,414 944x21.25 | display:block/flow position:static
+          0/0/2/5/14/0 "pathname /a/b"
+        0/0/2/5/15 li @ 28,435 944x21.25 | display:block/flow position:static
+          0/0/2/5/15/0 "search ?x=1&y=2"
+        0/0/2/5/16 li @ 28,456 944x21.25 | display:block/flow position:static
+          0/0/2/5/16/0 "hash #h"
+        0/0/2/5/17 li @ 28,477 944x21.25 | display:block/flow position:static
+          0/0/2/5/17/0 "get 2"
+        0/0/2/5/18 li @ 28,499 944x21.25 | display:block/flow position:static
+          0/0/2/5/18/0 "getAll [\"2\",\"3\"]"
+        0/0/2/5/19 li @ 28,520 944x21.25 | display:block/flow position:static
+          0/0/2/5/19/0 "has true"
+        0/0/2/5/20 li @ 28,541 944x21.25 | display:block/flow position:static
+          0/0/2/5/20/0 "set b=9&a=1"
+        0/0/2/5/21 li @ 28,562 944x21.25 | display:block/flow position:static
+          0/0/2/5/21/0 "append b=9&a=1&c=x+y"
+        0/0/2/5/22 li @ 28,583 944x21.25 | display:block/flow position:static
+          0/0/2/5/22/0 "delete b=9&c=x+y"
+      0/0/2/7 script @ 0,0 0x0 | display:none/none position:static
+        0/0/2/7/0 <1573 chars>

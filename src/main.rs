@@ -1010,6 +1010,11 @@ mod snapshot_tests {
     }
 
     #[test]
+    fn url() {
+        golden("url", &[]);
+    }
+
+    #[test]
     fn build_copies_what_a_module_imports() {
         // A module's imports are not <script src> tags, so nothing else in the
         // build sees them and the packaged app would fail at its first import.

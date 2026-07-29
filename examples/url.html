@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Kiln — URL and URLSearchParams</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 28px;
+        background: #0f1216;
+        color: #dbe2ea;
+        font: 14px/1.6 ui-sans-serif, system-ui, sans-serif;
+      }
+      h1 { font-size: 16px; margin: 0 0 4px; }
+      p.note { margin: 0 0 18px; color: #79879a; font-size: 13px; }
+      ul { list-style: none; padding: 0; margin: 0; }
+      li { font-family: ui-monospace, monospace; font-size: 12px; padding: 1px 0; }
+    </style>
+  </head>
+  <body>
+    <h1>URL and URLSearchParams</h1>
+    <p class="note">
+      Every line below was checked against Chrome. Bundlers address their assets
+      with <code>new URL("./x.png", import.meta.url)</code>, so resolution has to
+      be right rather than approximately right.
+    </p>
+    <ul id="out"></ul>
+
+    <script>
+      const out = document.getElementById("out");
+      const row = (label, value) => {
+        const li = document.createElement("li");
+        li.textContent = label + " " + value;
+        out.appendChild(li);
+      };
+
+      const resolutions = [
+        ["absolute", "https://a.example/x/y?q=1#f", undefined],
+        ["relative", "./z.png", "file:///app/dist/assets/main.js"],
+        ["parent", "../up.png", "file:///app/dist/assets/main.js"],
+        ["rooted", "/root.png", "https://a.example/x/y"],
+        ["scheme-relative", "//other.example/p", "https://a.example/x"],
+        ["sibling", "sibling.js", "file:///app/dist/main.js"],
+        ["query-only", "?only=query", "https://a.example/x/y?old=1"],
+        ["fragment-only", "#frag", "https://a.example/x/y?q=2"],
+        ["credentials", "https://u:p@host.example:8443/a/../b/./c?x=1#h", undefined],
+        ["dot-segments", "./a/b/../../c.js", "file:///app/main.js"],
+      ];
+
+      for (const [name, input, base] of resolutions) {
+        const url = base === undefined ? new URL(input) : new URL(input, base);
+        row(name, url.href);
+      }
+
+      const parsed = new URL("https://host.example:8443/a/b?x=1&y=2#h");
+      row("origin", parsed.origin);
+      row("host", parsed.host);
+      row("hostname", parsed.hostname);
+      row("port", parsed.port);
+      row("pathname", parsed.pathname);
+      row("search", parsed.search);
+      row("hash", parsed.hash);
+
+      const params = new URL("https://a.example/p?b=2&a=1&b=3").searchParams;
+      row("get", params.get("b"));
+      row("getAll", JSON.stringify(params.getAll("b")));
+      row("has", params.has("a"));
+      params.set("b", "9");
+      row("set", params.toString());
+      params.append("c", "x y");
+      row("append", params.toString());
+      params.delete("a");
+      row("delete", params.toString());
+    </script>
+  </body>
+</html>

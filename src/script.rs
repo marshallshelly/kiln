@@ -24,6 +24,132 @@ globalThis.console.info = globalThis.console.log;
 globalThis.console.warn = globalThis.console.log;
 globalThis.console.error = globalThis.console.log;
 
+class URLSearchParams {
+  constructor(init) {
+    this.__pairs = [];
+    if (typeof init === "string") {
+      const query = init.startsWith("?") ? init.slice(1) : init;
+      for (const part of query.split("&")) {
+        if (!part) continue;
+        const eq = part.indexOf("=");
+        const key = eq < 0 ? part : part.slice(0, eq);
+        const value = eq < 0 ? "" : part.slice(eq + 1);
+        this.append(__unescape(key), __unescape(value));
+      }
+    } else if (Array.isArray(init)) {
+      for (const [key, value] of init) this.append(key, value);
+    } else if (init && typeof init === "object") {
+      for (const key of Object.keys(init)) this.append(key, init[key]);
+    }
+  }
+  append(name, value) { this.__pairs.push([String(name), String(value)]); }
+  delete(name) { this.__pairs = this.__pairs.filter(([k]) => k !== String(name)); }
+  get(name) { const hit = this.__pairs.find(([k]) => k === String(name)); return hit ? hit[1] : null; }
+  getAll(name) { return this.__pairs.filter(([k]) => k === String(name)).map(([, v]) => v); }
+  has(name) { return this.__pairs.some(([k]) => k === String(name)); }
+  set(name, value) {
+    const at = this.__pairs.findIndex(([k]) => k === String(name));
+    if (at < 0) { this.append(name, value); return; }
+    this.__pairs[at] = [String(name), String(value)];
+    this.__pairs = this.__pairs.filter(([k], i) => k !== String(name) || i <= at);
+  }
+  sort() { this.__pairs.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)); }
+  forEach(fn, thisArg) { for (const [k, v] of this.__pairs.slice()) fn.call(thisArg, v, k, this); }
+  keys() { return this.__pairs.map(([k]) => k)[Symbol.iterator](); }
+  values() { return this.__pairs.map(([, v]) => v)[Symbol.iterator](); }
+  entries() { return this.__pairs.map(([k, v]) => [k, v])[Symbol.iterator](); }
+  [Symbol.iterator]() { return this.entries(); }
+  get size() { return this.__pairs.length; }
+  toString() {
+    return this.__pairs.map(([k, v]) => __escape(k) + "=" + __escape(v)).join("&");
+  }
+}
+
+const __unescape = (s) => { try { return decodeURIComponent(s.replace(/\+/g, " ")); } catch (_) { return s; } };
+const __escape = (s) => encodeURIComponent(s).replace(/%20/g, "+");
+
+// Enough of RFC 3986 reference resolution for real bundles. Not a WHATWG
+// implementation: no IDNA, no percent-encoding normalisation, no special-scheme
+// defaults beyond a default port of "".
+const __URL_PARTS = /^(?:([A-Za-z][A-Za-z0-9+.\-]*):)?(?:\/\/([^\/?#]*))?([^?#]*)(\?[^#]*)?(#.*)?$/;
+
+const __dots = (path) => {
+  const leading = path.startsWith("/");
+  const out = [];
+  for (const part of path.split("/")) {
+    if (part === "." || part === "") continue;
+    if (part === "..") { out.pop(); continue; }
+    out.push(part);
+  }
+  let joined = out.join("/");
+  if (leading) joined = "/" + joined;
+  if (path.endsWith("/") && !joined.endsWith("/")) joined += "/";
+  return joined;
+};
+
+class URL {
+  constructor(url, base) {
+    const input = String(url).trim();
+    let m = __URL_PARTS.exec(input);
+    if (!m) throw new TypeError("Invalid URL: " + input);
+    let [, scheme, authority, path, query, hash] = m;
+
+    if (!scheme) {
+      if (base === undefined) throw new TypeError("Invalid URL: " + input);
+      const b = __URL_PARTS.exec(String(base).trim());
+      if (!b || !b[1]) throw new TypeError("Invalid base URL: " + base);
+      scheme = b[1];
+      if (authority === undefined) {
+        authority = b[2];
+        if (!path) {
+          path = b[3];
+          if (query === undefined) query = b[4];
+        } else if (!path.startsWith("/")) {
+          const dir = (b[3] || "/").replace(/[^\/]*$/, "");
+          path = dir + path;
+        }
+      }
+    }
+
+    this.protocol = scheme ? scheme + ":" : "";
+    const auth = authority || "";
+    const at = auth.lastIndexOf("@");
+    const creds = at < 0 ? "" : auth.slice(0, at);
+    const hostport = at < 0 ? auth : auth.slice(at + 1);
+    const colon = hostport.lastIndexOf(":");
+    const bracket = hostport.lastIndexOf("]");
+
+    this.username = creds.split(":")[0] || "";
+    this.password = creds.includes(":") ? creds.slice(creds.indexOf(":") + 1) : "";
+    this.hostname = colon > bracket ? hostport.slice(0, colon) : hostport;
+    this.port = colon > bracket ? hostport.slice(colon + 1) : "";
+    this.host = hostport;
+    this.pathname = __dots(path || (authority !== undefined ? "/" : ""));
+    this.search = query && query !== "?" ? query : "";
+    this.hash = hash && hash !== "#" ? hash : "";
+    this.origin = authority !== undefined ? this.protocol + "//" + this.host : "null";
+    this.searchParams = new URLSearchParams(this.search);
+  }
+  get href() {
+    let credentials = this.username;
+    if (this.password) credentials += ":" + this.password;
+    if (credentials) credentials += "@";
+    const auth = this.host === "" && this.protocol !== "file:" ? "" : "//" + credentials + this.host;
+    return this.protocol + auth + this.pathname + this.search + this.hash;
+  }
+  set href(_value) {}
+  toString() { return this.href; }
+  toJSON() { return this.href; }
+  static createObjectURL() { return "blob:kiln"; }
+  static revokeObjectURL() {}
+  static canParse(url, base) {
+    try { new URL(url, base); return true; } catch (_) { return false; }
+  }
+}
+
+globalThis.URL = URL;
+globalThis.URLSearchParams = URLSearchParams;
+
 const __listeners = new Map();
 const __nodes = new Map();
 const __styles = new Map();
