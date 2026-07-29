@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Kiln — ES modules</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 32px;
+        background: #101a14;
+        color: #dfeadf;
+        font: 15px/1.6 ui-sans-serif, system-ui, sans-serif;
+      }
+      h1 { font-size: 17px; margin: 0 0 6px; }
+      p.note { margin: 0 0 20px; color: #7f9285; font-size: 13px; }
+      button {
+        font: inherit;
+        padding: 7px 15px;
+        margin-right: 8px;
+        border-radius: 8px;
+        border: 1px solid #2f4a3a;
+        background: #16241c;
+        color: #dfeadf;
+      }
+      ul { list-style: none; padding: 0; margin: 18px 0 0; }
+      li { font-family: ui-monospace, monospace; font-size: 13px; padding: 2px 0; }
+    </style>
+  </head>
+  <body>
+    <h1>ES modules</h1>
+    <p class="note">
+      An inline module importing a local module graph, with the store and its
+      formatter in separate files.
+    </p>
+
+    <button id="inc">increment</button>
+    <button id="dec">decrement</button>
+
+    <ul id="out"></ul>
+
+    <script type="module">
+      import { subscribe, dispatch, get } from "./modules/store.js";
+      import { summary, plural } from "./modules/format.js";
+
+      const out = document.getElementById("out");
+      const report = (label, value) => {
+        const li = document.createElement("li");
+        li.textContent = label + " " + value;
+        out.appendChild(li);
+      };
+
+      report("initial", summary());
+      report("plural-one", plural(1, "unit"));
+
+      subscribe((state) => report("notified", state.count));
+
+      document.getElementById("inc").addEventListener("click", () => dispatch("inc"));
+      document.getElementById("dec").addEventListener("click", () => dispatch("dec"));
+
+      dispatch("inc");
+      dispatch("inc");
+      report("after-two", summary());
+      report("shared-state", get().count);
+    </script>
+  </body>
+</html>

@@ -8,8 +8,8 @@ use blitz_traits::events::UiEvent;
 use blitz_traits::shell::{ColorScheme, Viewport};
 
 pub enum Script {
-    Inline(String),
-    Src(String),
+    Inline { code: String, module: bool },
+    Src { src: String, module: bool },
 }
 
 /// Resolves `file:` sub-resources — the stylesheets and images a real page
@@ -1165,11 +1165,16 @@ impl Dom {
 
         nodes
             .into_iter()
-            .filter_map(|id| match self.attribute(id, "src") {
-                Some(src) if !src.trim().is_empty() => Some(Script::Src(src)),
-                _ => {
-                    let text = self.text_content(id);
-                    (!text.trim().is_empty()).then_some(Script::Inline(text))
+            .filter_map(|id| {
+                let module = self
+                    .attribute(id, "type")
+                    .is_some_and(|kind| kind.trim().eq_ignore_ascii_case("module"));
+                match self.attribute(id, "src") {
+                    Some(src) if !src.trim().is_empty() => Some(Script::Src { src, module }),
+                    _ => {
+                        let code = self.text_content(id);
+                        (!code.trim().is_empty()).then_some(Script::Inline { code, module })
+                    }
                 }
             })
             .collect()

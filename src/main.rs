@@ -47,7 +47,7 @@ impl Watch {
             .unwrap_or_else(|| std::path::Path::new("."));
         let mut paths = vec![self.entry.clone()];
         for source in dom.scripts() {
-            if let dom::Script::Src(src) = source {
+            if let dom::Script::Src { src, .. } = source {
                 paths.push(base.join(src));
             }
         }
@@ -316,14 +316,24 @@ fn load(input: &str) -> Result<(Dom, Script, std::rc::Rc<native::Native>)> {
 
     dom.resolve();
 
+    script.set_module_root(base);
+
     for source in dom.scripts() {
         match source {
-            dom::Script::Inline(code) => script.eval(&code)?,
-            dom::Script::Src(src) => {
+            dom::Script::Inline {
+                code,
+                module: false,
+            } => script.eval(&code)?,
+            dom::Script::Inline { code, module: true } => script.eval_module(input, &code)?,
+            dom::Script::Src { src, module } => {
                 let file = base.join(&src);
                 let code = std::fs::read_to_string(&file)
                     .with_context(|| format!("read script {}", file.display()))?;
-                script.eval(&code)?;
+                if module {
+                    script.eval_module(&file.to_string_lossy(), &code)?;
+                } else {
+                    script.eval(&code)?;
+                }
             }
         }
     }
@@ -604,11 +614,22 @@ fn build(input: &str, out: &str) -> Result<()> {
     copied += 1;
 
     for source in dom.scripts() {
-        let dom::Script::Src(src) = source else {
+        let dom::Script::Src { src, .. } = source else {
             continue;
         };
         let from = base.join(&src);
         let to = out.join(&src);
+        if let Some(parent) = to.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("create {}", parent.display()))?;
+        }
+        std::fs::copy(&from, &to).with_context(|| format!("copy {}", from.display()))?;
+        copied += 1;
+    }
+
+    for relative in package::module_dependencies(base, &dom) {
+        let from = base.join(&relative);
+        let to = out.join(&relative);
         if let Some(parent) = to.parent() {
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("create {}", parent.display()))?;
@@ -981,6 +1002,29 @@ mod snapshot_tests {
     #[test]
     fn absolute() {
         golden("absolute", &[]);
+    }
+
+    #[test]
+    fn modules() {
+        golden("modules", &["#inc", "#inc", "#dec"]);
+    }
+
+    #[test]
+    fn build_copies_what_a_module_imports() {
+        // A module's imports are not <script src> tags, so nothing else in the
+        // build sees them and the packaged app would fail at its first import.
+        let out = std::env::temp_dir().join("kiln-module-build");
+        let _ = std::fs::remove_dir_all(&out);
+
+        build("examples/modules.html", out.to_str().unwrap()).unwrap();
+
+        for expected in ["modules.html", "modules/store.js", "modules/format.js"] {
+            assert!(
+                out.join(expected).is_file(),
+                "{expected} missing from the build"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&out);
     }
 
     #[test]

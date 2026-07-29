@@ -1,0 +1,38 @@
+0 #document
+  0/0 html @ 0,0 1000x419.25 | display:block/flow position:static
+    0/0/0 head @ 0,0 0x0 | display:none/none position:static
+      0/0/0/1 meta charset="utf-8" @ 0,0 0x0 | display:none
+      0/0/0/3 title @ 0,0 0x0 | display:none
+        0/0/0/3/0 "Kiln — ES modules"
+      0/0/0/5 style @ 0,0 0x0 | display:none
+        0/0/0/5/0 <508 chars>
+    0/0/2 body @ 0,0 1000x419.25 | display:block/flow position:static
+      0/0/2/1 h1 @ 32,32 936x27.25 | display:block/flow position:static
+        0/0/2/1/0 "ES modules"
+      0/0/2/3 p.note @ 32,65 936x20.75 | display:block/flow position:static
+        0/0/2/3/0 "An inline module importing a local module graph, with the store and its formatter in separate files."
+      0/0/2/5 button#inc @ 32,104 93x40 | display:inline/flex position:static
+        0/0/2/5/0 "increment"
+      0/0/2/7 button#dec @ 136,104 98x40 | display:inline/flex position:static
+        0/0/2/7/0 "decrement"
+      0/0/2/9 ul#out @ 32,164 936x223.25 | display:block/flow position:static
+        0/0/2/9/0 li @ 32,164 936x24.75 | display:block/flow position:static
+          0/0/2/9/0/0 "initial 0 units after 0 actions"
+        0/0/2/9/1 li @ 32,189 936x24.75 | display:block/flow position:static
+          0/0/2/9/1/0 "plural-one 1 unit"
+        0/0/2/9/2 li @ 32,214 936x24.75 | display:block/flow position:static
+          0/0/2/9/2/0 "notified 1"
+        0/0/2/9/3 li @ 32,238 936x24.75 | display:block/flow position:static
+          0/0/2/9/3/0 "notified 2"
+        0/0/2/9/4 li @ 32,263 936x24.75 | display:block/flow position:static
+          0/0/2/9/4/0 "after-two 2 units after 2 actions"
+        0/0/2/9/5 li @ 32,288 936x24.75 | display:block/flow position:static
+          0/0/2/9/5/0 "shared-state 2"
+        0/0/2/9/6 li @ 32,313 936x24.75 | display:block/flow position:static
+          0/0/2/9/6/0 "notified 3"
+        0/0/2/9/7 li @ 32,338 936x24.75 | display:block/flow position:static
+          0/0/2/9/7/0 "notified 4"
+        0/0/2/9/8 li @ 32,362 936x24.75 | display:block/flow position:static
+          0/0/2/9/8/0 "notified 3"
+      0/0/2/11 script type="module" @ 0,0 0x0 | display:none/none position:static
+        0/0/2/11/0 <690 chars>

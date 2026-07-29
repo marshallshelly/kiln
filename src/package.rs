@@ -16,6 +16,106 @@ pub struct Options {
     pub notarize: Option<String>,
 }
 
+/// Static import specifiers, so a module's dependencies travel with it. A
+/// bundler would parse properly; this reads the two forms a static import can
+/// take, which is all the spec allows at the top level. `import(expr)` with a
+/// computed specifier is deliberately not chased — nothing could.
+fn imports_of(source: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    for (index, _) in source
+        .match_indices("from ")
+        .chain(source.match_indices("import "))
+    {
+        let rest = &source[index..];
+        let Some(open) = rest.find(['"', '\'']) else {
+            continue;
+        };
+        if rest[..open].contains(['\n', ';', '{']) {
+            continue;
+        }
+        let quote = rest.as_bytes()[open] as char;
+        let after = &rest[open + 1..];
+        let Some(close) = after.find(quote) else {
+            continue;
+        };
+        let specifier = &after[..close];
+        if specifier.starts_with('.') {
+            found.push(specifier.to_string());
+        }
+    }
+    found.sort();
+    found.dedup();
+    found
+}
+
+/// Every module a page pulls in transitively, as paths relative to the entry.
+/// `kiln build` and `kiln package` both need this: a module's imports are not
+/// `<script src>` tags, so nothing else sees them.
+pub fn module_dependencies(base: &Path, dom: &crate::dom::Dom) -> Vec<String> {
+    let mut found: Vec<(PathBuf, String)> = Vec::new();
+    for source in dom.scripts() {
+        match source {
+            crate::dom::Script::Src { src, module: true } => {
+                collect_imports(base, &src, &mut found)
+            }
+            crate::dom::Script::Inline { code, module: true } => {
+                for specifier in imports_of(&code) {
+                    collect_imports_from(base, &specifier, &mut found);
+                }
+            }
+            _ => {}
+        }
+    }
+    found.into_iter().map(|(_, name)| name).collect()
+}
+
+fn collect_imports(base: &Path, relative: &str, out: &mut Vec<(PathBuf, String)>) {
+    let Ok(source) = std::fs::read_to_string(base.join(relative)) else {
+        return;
+    };
+    let parent = Path::new(relative).parent().unwrap_or(Path::new(""));
+
+    for specifier in imports_of(&source) {
+        let joined = parent.join(&specifier);
+        let Some(normalised) = normalise(&joined) else {
+            continue;
+        };
+        collect_imports_from(base, &normalised, out);
+    }
+}
+
+fn collect_imports_from(base: &Path, relative: &str, out: &mut Vec<(PathBuf, String)>) {
+    let normalised = match normalise(Path::new(relative)) {
+        Some(path) => path,
+        None => return,
+    };
+    if out.iter().any(|(_, name)| name == &normalised) {
+        return;
+    }
+    if !base.join(&normalised).is_file() {
+        return;
+    }
+    out.push((base.join(&normalised), normalised.clone()));
+    collect_imports(base, &normalised, out);
+}
+
+/// Flattens `./` and `../` so the copied name matches what the import resolves
+/// to. A specifier that climbs above the app directory is dropped, matching the
+/// module resolver.
+fn normalise(path: &Path) -> Option<String> {
+    let mut parts: Vec<String> = Vec::new();
+    for part in path.components() {
+        match part {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                parts.pop()?;
+            }
+            other => parts.push(other.as_os_str().to_string_lossy().into_owned()),
+        }
+    }
+    (!parts.is_empty()).then(|| parts.join("/"))
+}
+
 /// Everything the app needs at runtime: the entry page renamed to
 /// `index.html`, plus every local file it references.
 fn assets(entry: &Path, dom: &crate::dom::Dom) -> Result<Vec<(PathBuf, String)>> {
@@ -23,9 +123,12 @@ fn assets(entry: &Path, dom: &crate::dom::Dom) -> Result<Vec<(PathBuf, String)>>
     let mut out = vec![(entry.to_path_buf(), "index.html".to_string())];
 
     for source in dom.scripts() {
-        if let crate::dom::Script::Src(src) = source {
+        if let crate::dom::Script::Src { src, .. } = source {
             out.push((base.join(&src), src));
         }
+    }
+    for relative in module_dependencies(base, dom) {
+        out.push((base.join(&relative), relative));
     }
 
     let html =
