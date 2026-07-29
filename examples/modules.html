@@ -61,6 +61,7 @@
       dispatch("inc");
       report("after-two", summary());
       report("shared-state", get().count);
+      report("meta-url", import.meta.url.endsWith("/examples/modules.html"));
     </script>
   </body>
 </html>
