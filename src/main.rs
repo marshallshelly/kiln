@@ -974,6 +974,11 @@ mod snapshot_tests {
     }
 
     #[test]
+    fn scroll() {
+        golden("scroll", &[]);
+    }
+
+    #[test]
     fn fixed() {
         golden("fixed", &[]);
     }

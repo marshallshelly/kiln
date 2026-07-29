@@ -1,0 +1,33 @@
+0 #document
+  0/0 html @ 0,0 1000x497 | display:block/flow position:static
+    0/0/0 head @ 0,0 0x0 | display:none/none position:static
+      0/0/0/1 meta charset="utf-8" @ 0,0 0x0 | display:none
+      0/0/0/3 title @ 0,0 0x0 | display:none
+        0/0/0/3/0 "Kiln — programmatic scrolling"
+      0/0/0/5 style @ 0,0 0x0 | display:none
+        0/0/0/5/0 <572 chars>
+    0/0/2 body @ 0,0 1000x497 | display:block/flow position:static
+      0/0/2/1 h1 @ 24,24 952x27 | display:block/flow position:static
+        0/0/2/1/0 "programmatic scrolling"
+      0/0/2/3 div#box @ 14,-183 322x202 | display:block/flow position:static
+        0/0/2/3/1 div#content @ 15,-182 600x1000 | display:block/flow position:static
+          0/0/2/3/1/1 div#marker @ 15,458 600x40 | display:block/flow position:relative
+      0/0/2/5 ul#results @ 24,285 952x188 | display:block/flow position:static
+        0/0/2/5/0 li @ 24,285 952x23.5 | display:block/flow position:static
+          0/0/2/5/0/0 "metrics 200,1000"
+        0/0/2/5/1 li @ 24,309 952x23.5 | display:block/flow position:static
+          0/0/2/5/1/0 "set-scrollTop 120"
+        0/0/2/5/2 li @ 24,332 952x23.5 | display:block/flow position:static
+          0/0/2/5/2/0 "clamp-max 799"
+        0/0/2/5/3 li @ 24,356 952x23.5 | display:block/flow position:static
+          0/0/2/5/3/0 "clamp-min 0"
+        0/0/2/5/4 li @ 24,379 952x23.5 | display:block/flow position:static
+          0/0/2/5/4/0 "scrollTo 30,10"
+        0/0/2/5/5 li @ 24,403 952x23.5 | display:block/flow position:static
+          0/0/2/5/5/0 "scrollBy 90"
+        0/0/2/5/6 li @ 24,426 952x23.5 | display:block/flow position:static
+          0/0/2/5/6/0 "scrollIntoView 640"
+        0/0/2/5/7 li @ 24,450 952x23.5 | display:block/flow position:static
+          0/0/2/5/7/0 "scroll-event 1 @ 250"
+      0/0/2/7 script @ 0,0 0x0 | display:none/none position:static
+        0/0/2/7/0 <893 chars>

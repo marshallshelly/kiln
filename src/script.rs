@@ -154,9 +154,42 @@ class Element extends Node {
   get clientLeft() { const m = __kiln.boxMetrics(this.__id); return m ? m[8] : 0; }
   get clientTop() { const m = __kiln.boxMetrics(this.__id); return m ? m[9] : 0; }
   get scrollLeft() { const m = __kiln.boxMetrics(this.__id); return m ? m[6] : 0; }
-  set scrollLeft(_v) {}
+  set scrollLeft(v) { __kiln.scrollTo(this.__id, +v || 0, this.scrollTop); }
   get scrollTop() { const m = __kiln.boxMetrics(this.__id); return m ? m[7] : 0; }
-  set scrollTop(_v) {}
+  set scrollTop(v) { __kiln.scrollTo(this.__id, this.scrollLeft, +v || 0); }
+  scrollTo(x, y) {
+    const o = (x !== null && typeof x === "object") ? x : { left: x, top: y };
+    __kiln.scrollTo(
+      this.__id,
+      o.left === undefined ? this.scrollLeft : (+o.left || 0),
+      o.top === undefined ? this.scrollTop : (+o.top || 0),
+    );
+  }
+  scrollBy(x, y) {
+    const o = (x !== null && typeof x === "object") ? x : { left: x, top: y };
+    __kiln.scrollTo(
+      this.__id,
+      this.scrollLeft + (+o.left || 0),
+      this.scrollTop + (+o.top || 0),
+    );
+  }
+  scrollIntoView(arg) {
+    const block = (arg !== null && typeof arg === "object") ? (arg.block || "start") : (arg === false ? "end" : "start");
+    let target = this.parentElement;
+    while (target) {
+      const m = __kiln.boxMetrics(target.__id);
+      if (m && (m[5] > m[3] + 1 || m[4] > m[2] + 1)) break;
+      target = target.parentElement;
+    }
+    if (!target) return;
+    const mine = this.getBoundingClientRect();
+    const theirs = target.getBoundingClientRect();
+    let dy = mine.top - theirs.top - target.clientTop;
+    if (block === "end") dy -= (target.clientHeight - mine.height);
+    else if (block === "center") dy -= (target.clientHeight - mine.height) / 2;
+    const dx = mine.left - theirs.left - target.clientLeft;
+    __kiln.scrollTo(target.__id, target.scrollLeft + dx, target.scrollTop + dy);
+  }
   get offsetTop() { return this.getBoundingClientRect().top; }
   get offsetLeft() { return this.getBoundingClientRect().left; }
   get offsetParent() { return this.parentElement; }
@@ -1134,6 +1167,9 @@ impl Script {
                     .set_value(id, &v));
                 bind!("rect", d, move |id: usize| d.client_rect(id));
                 bind!("boxMetrics", d, move |id: usize| d.box_metrics(id));
+                bind!("scrollTo", d, move |id: usize, x: f64, y: f64| {
+                    d.scroll_node_to(id, x, y);
+                });
                 bind!("viewportSize", d, move || d.viewport_size());
                 bind!("computedStyle", d, move |id: usize| d.computed_style(id));
 

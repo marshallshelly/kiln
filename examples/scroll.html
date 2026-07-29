@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Kiln — programmatic scrolling</title>
+    <style>
+      body {
+        font: 15px/1.5 ui-sans-serif, system-ui, sans-serif;
+        margin: 0;
+        padding: 24px;
+        background: #14161a;
+        color: #e7e9ee;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 16px;
+      }
+      #box {
+        width: 320px;
+        height: 200px;
+        overflow: scroll;
+        border: 1px solid #3a4050;
+        background: #1c1f26;
+      }
+      #content {
+        height: 1000px;
+        width: 600px;
+        background: linear-gradient(#2a3040, #1c1f26);
+      }
+      #marker {
+        position: relative;
+        top: 640px;
+        height: 40px;
+        background: #d98c3f;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 16px 0 0;
+      }
+      li {
+        font-family: ui-monospace, monospace;
+        font-size: 13px;
+        padding: 2px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>programmatic scrolling</h1>
+
+    <div id="box">
+      <div id="content">
+        <div id="marker"></div>
+      </div>
+    </div>
+
+    <ul id="results"></ul>
+
+    <script>
+      var box = document.getElementById("box");
+      var results = document.getElementById("results");
+
+      function report(label, value) {
+        var li = document.createElement("li");
+        li.textContent = label + " " + value;
+        results.appendChild(li);
+      }
+
+      report("metrics", box.clientHeight + "," + box.scrollHeight);
+
+      box.scrollTop = 120;
+      report("set-scrollTop", box.scrollTop);
+
+      box.scrollTop = 99999;
+      report("clamp-max", box.scrollTop);
+
+      box.scrollTop = -50;
+      report("clamp-min", box.scrollTop);
+
+      box.scrollTo({ top: 30, left: 10 });
+      report("scrollTo", box.scrollTop + "," + box.scrollLeft);
+
+      box.scrollBy({ top: 60 });
+      report("scrollBy", box.scrollTop);
+
+      box.scrollTop = 0;
+      document.getElementById("marker").scrollIntoView();
+      report("scrollIntoView", box.scrollTop);
+
+      var scrolls = 0;
+      box.addEventListener("scroll", function () {
+        scrolls += 1;
+        report("scroll-event", scrolls + " @ " + box.scrollTop);
+      });
+      box.scrollTop = 250;
+    </script>
+  </body>
+</html>

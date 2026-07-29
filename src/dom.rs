@@ -322,6 +322,7 @@ pub struct Dom {
     document: Rc<RefCell<HtmlDocument>>,
     journal: Rc<RefCell<Journal>>,
     clock: Rc<std::cell::Cell<f64>>,
+    pending: Rc<RefCell<Vec<crate::events::Dispatch>>>,
 }
 
 impl Dom {
@@ -350,6 +351,7 @@ impl Dom {
             document: Rc::new(RefCell::new(document)),
             journal: Rc::new(RefCell::new(Journal::default())),
             clock: Rc::new(std::cell::Cell::new(0.0)),
+            pending: Rc::new(RefCell::new(Vec::new())),
         }
     }
 
@@ -420,11 +422,22 @@ impl Dom {
         const MAX_PASSES: usize = 4;
         for _ in 0..MAX_PASSES {
             self.resolve();
-            if script.run_observers() == 0 {
+            let dispatched = self.drain_pending(script);
+            if script.run_observers() == 0 && !dispatched {
                 return;
             }
         }
         self.resolve();
+    }
+
+    fn drain_pending(&self, script: &crate::script::Script) -> bool {
+        let queued = std::mem::take(&mut *self.pending.borrow_mut());
+        for dispatch in &queued {
+            if let Err(error) = script.dispatch(dispatch) {
+                eprintln!("{} handler: {error:?}", dispatch.kind);
+            }
+        }
+        !queued.is_empty()
     }
 
     pub fn paint(
@@ -817,6 +830,53 @@ impl Dom {
         self.flush_layout();
         let rect = self.document.borrow().get_client_bounding_rect(node_id)?;
         Some(vec![rect.x, rect.y, rect.width, rect.height])
+    }
+
+    pub fn scroll_node_to(&self, node_id: usize, x: f64, y: f64) {
+        self.flush_layout();
+
+        let delta = {
+            let document = self.document.borrow();
+            let Some(node) = document.get_node(node_id) else {
+                return;
+            };
+
+            let max_x = f64::from(node.final_layout.scroll_width());
+            let max_y = f64::from(node.final_layout.scroll_height());
+
+            (
+                node.scroll_offset.x - x.clamp(0.0, max_x),
+                node.scroll_offset.y - y.clamp(0.0, max_y),
+            )
+        };
+
+        if delta == (0.0, 0.0) {
+            return;
+        }
+
+        let mut queued = Vec::new();
+        {
+            let mut document = self.document.borrow_mut();
+            document.scroll_node_by(node_id, delta.0, delta.1, |event| {
+                queued.push(crate::events::Dispatch {
+                    chain: vec![event.target],
+                    kind: "scroll",
+                    key: None,
+                    button: 0,
+                    client_x: 0.0,
+                    client_y: 0.0,
+                });
+            });
+        }
+        let mut pending = self.pending.borrow_mut();
+        for dispatch in queued {
+            let already = pending
+                .iter()
+                .any(|other| other.kind == dispatch.kind && other.chain == dispatch.chain);
+            if !already {
+                pending.push(dispatch);
+            }
+        }
     }
 
     pub fn box_metrics(&self, node_id: usize) -> Option<Vec<f64>> {
