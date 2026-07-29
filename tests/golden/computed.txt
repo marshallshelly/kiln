@@ -1,0 +1,51 @@
+0 #document
+  0/0 html @ 0,0 1000x406.25 | display:block/flow position:static
+    0/0/0 head @ 0,0 0x0 | display:none/none position:static
+      0/0/0/1 meta charset="utf-8" @ 0,0 0x0 | display:none
+      0/0/0/3 title @ 0,0 0x0 | display:none
+        0/0/0/3/0 "Kiln — getComputedStyle colours"
+      0/0/0/5 style @ 0,0 0x0 | display:none
+        0/0/0/5/0 <808 chars>
+    0/0/2 body @ 0,0 1000x406.25 | display:block/flow position:static
+      0/0/2/1 h1 @ 28,28 944x25.5 | display:block/flow position:static
+        0/0/2/1/0 "getComputedStyle colours"
+      0/0/2/3 p.note @ 28,58 504.5x62.5 | display:block/flow position:static
+        0/0/2/3/0 "Serialised as a browser does —"
+        0/0/2/3/1 code @ 28,58 0x0 | display:inline/flow position:static
+          0/0/2/3/1/0 "rgb()"
+        0/0/2/3/2 "when opaque,"
+        0/0/2/3/3 code @ 28,58 0x0 | display:inline/flow position:static
+          0/0/2/3/3/0 "rgba()"
+        0/0/2/3/4 "otherwise, whatever notation the author used. The exception is the last line: wide-gamut colours convert to sRGB here, where a browser keeps the original space."
+      0/0/2/5 div#hex.probe @ 28,138 0x0 | display:block/flow position:static
+      0/0/2/7 div#named.probe @ 28,138 0x0 | display:block/flow position:static
+      0/0/2/9 div#alpha.probe @ 28,138 0x0 | display:block/flow position:static
+      0/0/2/11 div#shorthand.probe @ 28,138 4x4 | display:block/flow position:static
+      0/0/2/13 div#sides.probe @ 28,142 1x1 | display:block/flow position:static
+      0/0/2/15 div#current.probe @ 28,143 2x2 | display:block/flow position:static
+      0/0/2/17 div#wide.probe @ 28,145 0x0 | display:block/flow position:static
+      0/0/2/19 ul#out @ 28,145 944x233.25 | display:block/flow position:static
+        0/0/2/19/0 li @ 28,145 944x21.25 | display:block/flow position:static
+          0/0/2/19/0/0 "hex.color = rgb(58, 123, 213)"
+        0/0/2/19/1 li @ 28,166 944x21.25 | display:block/flow position:static
+          0/0/2/19/1/0 "hex.background-color = rgba(255, 255, 255, 0)"
+        0/0/2/19/2 li @ 28,187 944x21.25 | display:block/flow position:static
+          0/0/2/19/2/0 "named.color = rgb(102, 51, 153)"
+        0/0/2/19/3 li @ 28,209 944x21.25 | display:block/flow position:static
+          0/0/2/19/3/0 "named.background-color = rgb(255, 255, 255)"
+        0/0/2/19/4 li @ 28,230 944x21.25 | display:block/flow position:static
+          0/0/2/19/4/0 "alpha.color = rgba(10, 20, 30, 0.54)"
+        0/0/2/19/5 li @ 28,251 944x21.25 | display:block/flow position:static
+          0/0/2/19/5/0 "alpha.background-color = rgba(1, 2, 3, 0.25)"
+        0/0/2/19/6 li @ 28,272 944x21.25 | display:block/flow position:static
+          0/0/2/19/6/0 "shorthand.border-top-color = rgb(192, 57, 43)"
+        0/0/2/19/7 li @ 28,293 944x21.25 | display:block/flow position:static
+          0/0/2/19/7/0 "sides.border-top-color = rgb(18, 52, 86)"
+        0/0/2/19/8 li @ 28,315 944x21.25 | display:block/flow position:static
+          0/0/2/19/8/0 "sides.border-right-color = rgb(255, 0, 0)"
+        0/0/2/19/9 li @ 28,336 944x21.25 | display:block/flow position:static
+          0/0/2/19/9/0 "current.border-left-color = rgb(32, 64, 96)"
+        0/0/2/19/10 li @ 28,357 944x21.25 | display:block/flow position:static
+          0/0/2/19/10/0 "wide.color = rgb(0, 185, 195)"
+      0/0/2/21 script @ 0,0 0x0 | display:none/none position:static
+        0/0/2/21/0 <592 chars>

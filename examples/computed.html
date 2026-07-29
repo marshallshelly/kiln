@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Kiln — getComputedStyle colours</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 28px;
+        background: #14151a;
+        color: #dde1e8;
+        font: 14px/1.6 ui-sans-serif, system-ui, sans-serif;
+      }
+      h1 { font-size: 16px; margin: 0 0 4px; }
+      p.note { margin: 0 0 18px; color: #7d8797; font-size: 13px; max-width: 64ch; }
+      ul { list-style: none; padding: 0; margin: 0; }
+      li { font-family: ui-monospace, monospace; font-size: 12px; padding: 1px 0; }
+      .probe { width: 0; height: 0; }
+
+      #hex { color: #3a7bd5; background-color: #fff0; }
+      #named { color: rebeccapurple; background-color: white; }
+      #alpha { color: rgba(10, 20, 30, 0.54); background-color: rgb(1 2 3 / 25%); }
+      #shorthand { border: 2px solid; color: #c0392b; }
+      #sides { border-top: 1px solid #123456; border-right: 1px solid red; }
+      #current { color: #204060; border: 1px solid currentColor; }
+      #wide { color: oklch(0.7 0.15 200); }
+    </style>
+  </head>
+  <body>
+    <h1>getComputedStyle colours</h1>
+    <p class="note">
+      Serialised as a browser does — <code>rgb()</code> when opaque,
+      <code>rgba()</code> otherwise, whatever notation the author used. The
+      exception is the last line: wide-gamut colours convert to sRGB here, where
+      a browser keeps the original space.
+    </p>
+
+    <div class="probe" id="hex"></div>
+    <div class="probe" id="named"></div>
+    <div class="probe" id="alpha"></div>
+    <div class="probe" id="shorthand"></div>
+    <div class="probe" id="sides"></div>
+    <div class="probe" id="current"></div>
+    <div class="probe" id="wide"></div>
+
+    <ul id="out"></ul>
+
+    <script>
+      const out = document.getElementById("out");
+      const probes = [
+        ["hex", "color"],
+        ["hex", "background-color"],
+        ["named", "color"],
+        ["named", "background-color"],
+        ["alpha", "color"],
+        ["alpha", "background-color"],
+        ["shorthand", "border-top-color"],
+        ["sides", "border-top-color"],
+        ["sides", "border-right-color"],
+        ["current", "border-left-color"],
+        ["wide", "color"],
+      ];
+
+      for (const [id, property] of probes) {
+        const li = document.createElement("li");
+        const value = getComputedStyle(document.getElementById(id))[property];
+        li.textContent = id + "." + property + " = " + value;
+        out.appendChild(li);
+      }
+    </script>
+  </body>
+</html>

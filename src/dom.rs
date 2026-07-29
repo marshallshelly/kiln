@@ -85,6 +85,25 @@ fn describe(document: &HtmlDocument, node_id: usize) -> String {
     out
 }
 
+/// `rgb()` when opaque and `rgba()` otherwise, which is what a browser returns
+/// from `getComputedStyle` regardless of how the colour was written.
+fn css_color(components: [f32; 4]) -> String {
+    let [red, green, blue, alpha] = components;
+    let byte = |value: f32| (value * 255.0).round().clamp(0.0, 255.0) as u8;
+
+    if alpha >= 1.0 {
+        format!("rgb({}, {}, {})", byte(red), byte(green), byte(blue))
+    } else {
+        let alpha = (f64::from(alpha) * 1000.0).round() / 1000.0;
+        format!(
+            "rgba({}, {}, {}, {alpha})",
+            byte(red),
+            byte(green),
+            byte(blue)
+        )
+    }
+}
+
 fn quantise(value: f32) -> String {
     let snapped = (f64::from(value) * 4.0).round() / 4.0;
     let snapped = if snapped == 0.0 { 0.0 } else { snapped };
@@ -1123,6 +1142,32 @@ impl Dom {
             out.push(keyword(&style.clone_visibility()));
             out.push("direction".into());
             out.push(keyword(&style.clone_direction()));
+
+            use blitz_dom::util::ToColorColor as _;
+
+            let current = style.clone_color();
+            let border = style.get_border();
+
+            out.push("color".into());
+            out.push(css_color(
+                style.get_inherited_text().color.as_color_color().components,
+            ));
+
+            for (name, value) in [
+                ("background-color", &style.get_background().background_color),
+                ("border-top-color", &border.border_top_color),
+                ("border-right-color", &border.border_right_color),
+                ("border-bottom-color", &border.border_bottom_color),
+                ("border-left-color", &border.border_left_color),
+            ] {
+                out.push(name.into());
+                out.push(css_color(
+                    value
+                        .resolve_to_absolute(&current)
+                        .as_color_color()
+                        .components,
+                ));
+            }
         }
 
         out

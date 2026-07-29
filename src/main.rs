@@ -1038,6 +1038,11 @@ mod snapshot_tests {
     }
 
     #[test]
+    fn computed() {
+        golden("computed", &[]);
+    }
+
+    #[test]
     fn prefers_color_scheme_follows_the_viewport() {
         // Headless defaults to light whatever the machine is set to, or every
         // golden would depend on the developer's theme.
