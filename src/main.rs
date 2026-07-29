@@ -21,6 +21,15 @@ use winit::window::{Window, WindowId};
 use dom::Dom;
 use script::Script;
 
+/// winit reports no theme on platforms that do not expose one, where a browser
+/// would report light.
+fn scheme_of(theme: Option<winit::window::Theme>) -> blitz_traits::shell::ColorScheme {
+    match theme {
+        Some(winit::window::Theme::Dark) => blitz_traits::shell::ColorScheme::Dark,
+        _ => blitz_traits::shell::ColorScheme::Light,
+    }
+}
+
 pub const DEFAULT_WIDTH: u32 = 1000;
 pub const DEFAULT_HEIGHT: u32 = 700;
 
@@ -137,6 +146,7 @@ impl App {
             eprintln!("{error:?}");
         }
         window.set_ime_allowed(true);
+        self.dom.set_color_scheme(scheme_of(window.theme()));
         self.dom.set_viewport(size.width, size.height, self.scale);
         window.request_redraw();
         self.window = Some(window);
@@ -252,6 +262,12 @@ impl ApplicationHandler for App {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::ThemeChanged(theme) => {
+                self.dom.set_color_scheme(scheme_of(Some(theme)));
+                if let Some(window) = self.window.as_ref() {
+                    window.request_redraw();
+                }
+            }
             WindowEvent::Resized(size) => {
                 if size.width == 0 || size.height == 0 {
                     return;
@@ -380,6 +396,7 @@ struct Run {
     at: Option<String>,
     a11y: Option<String>,
     menu: Option<String>,
+    dark: bool,
 }
 
 fn render(input: &str, output: &str, run: &Run) -> Result<()> {
@@ -394,8 +411,13 @@ fn render(input: &str, output: &str, run: &Run) -> Result<()> {
         at,
         a11y,
         menu,
+        dark,
     } = run;
     let (dom, script, native) = load(input)?;
+
+    if *dark {
+        dom.set_color_scheme(blitz_traits::shell::ColorScheme::Dark);
+    }
 
     let mut targets: Vec<(f32, f32)> = Vec::new();
 
@@ -847,6 +869,7 @@ fn main() -> Result<()> {
                 at: flag("--at").into_iter().next(),
                 a11y: flag("--a11y").into_iter().next(),
                 menu: flag("--menu").into_iter().next(),
+                dark: args.iter().any(|arg| arg == "--dark"),
             };
             match positional.first() {
                 Some(input) => render(
@@ -1012,6 +1035,36 @@ mod snapshot_tests {
     #[test]
     fn url() {
         golden("url", &[]);
+    }
+
+    #[test]
+    fn prefers_color_scheme_follows_the_viewport() {
+        // Headless defaults to light whatever the machine is set to, or every
+        // golden would depend on the developer's theme.
+        let page = std::env::temp_dir().join("kiln-scheme.html");
+        std::fs::write(
+            &page,
+            r##"<!doctype html><html><head><style>
+                 #a { width: 100px; height: 10px }
+                 @media (prefers-color-scheme: dark)  { #a { width: 200px } }
+                 @media (prefers-color-scheme: light) { #a { width: 300px } }
+               </style></head><body><div id="a"></div></body></html>"##,
+        )
+        .unwrap();
+
+        let width = |dark: bool| {
+            let (dom, script, _native) = load(page.to_str().unwrap()).unwrap();
+            if dark {
+                dom.set_color_scheme(blitz_traits::shell::ColorScheme::Dark);
+            }
+            dom.settle(&script);
+            let node = dom.query_selector("#a").unwrap();
+            dom.box_metrics(node).unwrap()[0]
+        };
+
+        assert_eq!(width(false), 300.0, "light is the headless default");
+        assert_eq!(width(true), 200.0, "dark switches the media query");
+        let _ = std::fs::remove_file(&page);
     }
 
     #[test]

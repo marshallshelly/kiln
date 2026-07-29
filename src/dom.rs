@@ -354,6 +354,7 @@ pub struct Dom {
     journal: Rc<RefCell<Journal>>,
     clock: Rc<std::cell::Cell<f64>>,
     pending: Rc<RefCell<Vec<crate::events::Dispatch>>>,
+    scheme: Rc<std::cell::Cell<ColorScheme>>,
 }
 
 impl Dom {
@@ -383,6 +384,7 @@ impl Dom {
             journal: Rc::new(RefCell::new(Journal::default())),
             clock: Rc::new(std::cell::Cell::new(0.0)),
             pending: Rc::new(RefCell::new(Vec::new())),
+            scheme: Rc::new(std::cell::Cell::new(ColorScheme::Light)),
         }
     }
 
@@ -428,8 +430,19 @@ impl Dom {
             width,
             height,
             scale,
-            ColorScheme::Light,
+            self.scheme.get(),
         ));
+    }
+
+    /// Drives `prefers-color-scheme`. The windowed path follows the OS; the
+    /// headless path takes an explicit flag, because a golden that changed with
+    /// the machine's theme would be worse than no golden.
+    pub fn set_color_scheme(&self, scheme: ColorScheme) {
+        if self.scheme.get() == scheme {
+            return;
+        }
+        self.scheme.set(scheme);
+        self.document.borrow_mut().viewport_mut().color_scheme = scheme;
     }
 
     pub fn resolve(&self) {
