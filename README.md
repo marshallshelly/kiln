@@ -63,7 +63,7 @@ M3 is when this becomes demonstrable. M8 is when you could port something real. 
 |---|---|---|---|
 | Author in HTML/CSS/TS | yes | yes | yes |
 | Ships a browser | Chromium | borrows the OS WebView | **no** |
-| Identical rendering on every OS | yes | **no** | yes — [layout is asserted on all three platforms](#building) |
+| Identical rendering on every OS | yes | **no** | yes — [layout and text metrics asserted on all three platforms](#building) |
 | You control the engine | no | no | **yes** |
 | Full CSS support | yes | yes | **no — see [The subset](#the-subset)** |
 | Production ready | yes | yes | **no — see [Status](#status)** |
@@ -585,13 +585,26 @@ thing to differ.
 
 It was blessed on macOS and passes byte-for-byte on Linux and Windows.
 
-**What that does and does not prove.** Layout is identical: the same stylesheet
-produces the same boxes, to the quarter-pixel, on every platform. It does not
-prove text is, because the runners have different fonts installed — though an
-app that vendors its own fonts, as most do, feeds the same file to the same
-shaper everywhere. And it compares layout, not pixels; paint-level identity is
-still unverified. The CSS report, the accessibility tree and the menu model are
-asserted on all three.
+[`examples/text-metrics.html`](examples/text-metrics.html) closes the other
+half. It uses a single vendored face with **no fallback anywhere**, so the same
+file feeds the same shaper on every platform — which is the case that matters,
+since a shipped app vendors its fonts rather than hoping the host has them. It
+measures advances at three sizes, letter-spacing and word-spacing, wrapping,
+an unbreakable word overflowing its box, and line-height. Its golden is also
+compared on all three, and also passes.
+
+That test is only meaningful if the vendored font is really the one being
+measured, so that was checked rather than assumed: break the `@font-face` src
+and the first box measures 65px instead of 71px, because a system face takes
+over. A page whose font silently failed to load would otherwise still produce
+a golden — one testing the host's fonts rather than the vendored one.
+
+**What this does and does not prove.** Layout and text metrics are identical to
+the quarter-pixel on macOS, Linux and Windows. It compares boxes, not pixels:
+paint-level identity — antialiasing, hinting, subpixel positioning — is still
+unverified, and hard to verify in CI where the Windows runner has no GPU. The
+CSS report, the accessibility tree and the menu model are asserted on all three
+as well.
 
 ## Contributing
 
