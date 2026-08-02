@@ -85,7 +85,9 @@ The other two are the GPU stack, and the split says so. `kiln check` parses, cas
 
 It also explains the odd part: a freshly *copied* binary was slow once and then fast, because the cache is system-wide rather than per-binary. A rebuild does not reproduce it either. So the cost is paid once per machine, by whichever Vello application runs first — not once per install of your app.
 
-Nothing in `src/` can fix that. Shipping precompiled shader archives is a wgpu and Vello concern, and it is the single largest startup win available if it ever lands there.
+Nothing in `src/` can fix that, but the shape of a fix is narrower than it first looked. Vello already accepts a `pipeline_cache`; `anyrender_vello` hardcodes it to `None` and offers no way to set one, so no consumer can opt in — filed as [anyrender#72](https://github.com/DioxusLabs/anyrender/issues/72).
+
+That would not help here, though. `wgpu-hal`'s Metal `create_pipeline_cache` is a unit-struct stub, as are DX12 and GLES; only Vulkan builds a real one. macOS gets its speedup from the OS cache instead, which is exactly why the second launch is already fast. So the win is Linux, and on macOS the 1.9 seconds is a cost paid once per machine by whichever Vello app runs first.
 
 None of this is compared against Electron or Tauri, because nothing here runs them. Treat it as a floor to improve on and a regression check, not as a competitive claim.
 
