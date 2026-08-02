@@ -1,0 +1,31 @@
+0 #document
+  0/0 html @ 0,0 1000x450 | display:block/flow position:static
+    0/0/0 head @ 0,0 0x0 | display:none/none position:static
+      0/0/0/1 meta charset="utf-8" @ 0,0 0x0 | display:none
+      0/0/0/3 title @ 0,0 0x0 | display:none
+        0/0/0/3/0 "Kiln — platform-independent text metrics"
+      0/0/0/5 style @ 0,0 0x0 | display:none
+        0/0/0/5/0 <969 chars>
+    0/0/2 body @ 0,0 900x438 | display:block/flow position:static
+      0/0/2/1 section @ 0,0 900x39.25 | display:block/flow position:static
+        0/0/2/1/1 div#short.measured @ 9,9 71x21.25 | display:inline/flow-root position:static
+          0/0/2/1/1/0 "Advance"
+      0/0/2/3 section @ 0,51 900x52.5 | display:block/flow position:static
+        0/0/2/3/1 div#small.measured.sized-14 @ 9,72 62x18.75 | display:inline/flow-root position:static
+          0/0/2/3/1/0 "Advance"
+        0/0/2/3/3 div#large.measured.sized-27 @ 81,57 118x34.5 | display:inline/flow-root position:static
+          0/0/2/3/3/0 "Advance"
+      0/0/2/5 section @ 0,116 900x39.25 | display:block/flow position:static
+        0/0/2/5/1 div#letterspaced.measured.spaced @ 9,122 92x21.25 | display:inline/flow-root position:static
+          0/0/2/5/1/0 "Advance"
+        0/0/2/5/3 div#wordspaced.measured.worded @ 111,122 152x21.25 | display:inline/flow-root position:static
+          0/0/2/5/3/0 "one two three"
+      0/0/2/7 section @ 0,167 900x92 | display:block/flow position:static
+        0/0/2/7/1 div#wrapped.wraps @ 9,176 260x74 | display:block/flow position:static
+          0/0/2/7/1/0 "The quick brown fox jumps over the lazy dog while the compiler waits."
+      0/0/2/9 section @ 0,271 900x39.25 | display:block/flow position:static
+        0/0/2/9/1 div#breaking.narrow @ 9,280 90x21.25 | display:block/flow position:static
+          0/0/2/9/1/0 "antidisestablishmentarianism"
+      0/0/2/11 section @ 0,322 900x116 | display:block/flow position:static
+        0/0/2/11/1 div#leading.tall.wraps @ 9,331 260x98 | display:block/flow position:static
+          0/0/2/11/1/0 "Line height changes the block height without changing the advances."

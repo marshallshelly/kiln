@@ -1141,6 +1141,21 @@ mod snapshot_tests {
     }
 
     #[test]
+    fn text_metrics_are_identical_on_every_platform() {
+        // The geometry golden removed fonts from the question; this one puts
+        // them back under control. The page uses a single vendored face with no
+        // fallback, so the same file feeds the same shaper on every platform --
+        // which is the case that actually matters, since a shipped app vendors
+        // its fonts rather than hoping the host has them.
+        //
+        // Verified load-bearing: with the @font-face src broken, the first box
+        // measures 65px instead of 71px, because a system face takes over.
+        let (dom, script, _native) = load("examples/text-metrics.html").unwrap();
+        dom.settle(&script);
+        compare("tests/golden/text-metrics.txt", &dom.snapshot());
+    }
+
+    #[test]
     fn scroll() {
         golden("scroll", &[]);
     }

@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Kiln — platform-independent text metrics</title>
+    <style>
+      /* One vendored font and no fallback anywhere. If a glyph is missing the
+         box collapses rather than silently borrowing a system face, which is
+         what would make this test lie. Every measurement below therefore comes
+         from the same font file on every platform. */
+      @font-face {
+        font-family: "Vendored";
+        src: url("vendor/spacemono/SpaceMono-Regular.ttf") format("truetype");
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body { width: 900px; font-family: "Vendored"; font-size: 16px; }
+
+      section { border: 1px solid #333; margin: 0 0 12px; padding: 8px; }
+
+      /* Shrink-to-fit, so the box width is the measured text advance. */
+      .measured { display: inline-block; border: 1px solid #999; }
+
+      .wraps { width: 260px; border: 1px solid #999; line-height: 24px; }
+      .narrow { width: 90px; border: 1px solid #999; }
+
+      .sized-14 { font-size: 14px; }
+      .sized-27 { font-size: 27px; }
+      .spaced { letter-spacing: 3px; }
+      .worded { word-spacing: 11px; }
+      .tall { line-height: 2; }
+    </style>
+  </head>
+  <body>
+    <section>
+      <div class="measured" id="short">Advance</div>
+    </section>
+    <section>
+      <div class="measured sized-14" id="small">Advance</div>
+      <div class="measured sized-27" id="large">Advance</div>
+    </section>
+    <section>
+      <div class="measured spaced" id="letterspaced">Advance</div>
+      <div class="measured worded" id="wordspaced">one two three</div>
+    </section>
+    <section>
+      <div class="wraps" id="wrapped">
+        The quick brown fox jumps over the lazy dog while the compiler waits.
+      </div>
+    </section>
+    <section>
+      <div class="narrow" id="breaking">antidisestablishmentarianism</div>
+    </section>
+    <section>
+      <div class="wraps tall" id="leading">
+        Line height changes the block height without changing the advances.
+      </div>
+    </section>
+  </body>
+</html>
