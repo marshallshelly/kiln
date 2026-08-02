@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Kiln — platform-independent geometry</title>
+    <style>
+      /* No text anywhere, and no font-relative units. Every size here resolves
+         from the stylesheet and the viewport alone, so the numbers this page
+         produces should be identical on every platform. That is the claim
+         "identical rendering on every OS" makes, and this is what tests it. */
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body { width: 1000px; }
+
+      .row {
+        display: flex;
+        gap: 12px;
+        padding: 16px;
+        border: 2px solid #333;
+      }
+      .row > i { display: block; height: 40px; background: #999; }
+      .grow { flex: 1; }
+      .grow-2 { flex: 2; }
+      .fixed { width: 120px; }
+      .basis { flex: 0 1 240px; }
+
+      .column {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+        width: 40%;
+        padding: 10px 24px;
+        border-left: 6px solid #555;
+      }
+      .column > i { display: block; width: 60%; height: 24px; background: #bbb; }
+
+      .wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 18px;
+        width: 460px;
+        padding: 8px;
+      }
+      .wrap > i { display: block; width: 130px; height: 30px; background: #ccc; }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        grid-template-rows: 50px 30px;
+        gap: 14px 9px;
+        padding: 18px;
+        border: 1px dashed #777;
+      }
+      .grid > i { display: block; background: #ddd; }
+      .grid > i.span { grid-column: span 2; }
+
+      .stage {
+        position: relative;
+        height: 160px;
+        margin: 20px 0 0 35px;
+        padding: 25px;
+        border: 3px solid #222;
+      }
+      .stage > .pin {
+        position: absolute;
+        width: 80px;
+        height: 40px;
+        background: #888;
+      }
+      #tl { top: 10px; left: 10px; }
+      #br { right: 12px; bottom: 14px; }
+      #stretched { inset: 60px 40px; width: auto; height: auto; }
+
+      .ratio { width: 300px; aspect-ratio: 3 / 1; background: #eee; }
+      .bounded { width: 100%; min-width: 200px; max-width: 380px; height: 20px; background: #aaa; }
+
+      .scroller {
+        width: 220px;
+        height: 90px;
+        overflow: scroll;
+        border: 1px solid #666;
+        padding: 7px;
+      }
+      .scroller > i { display: block; width: 500px; height: 400px; background: #f0f0f0; }
+    </style>
+  </head>
+  <body>
+    <div class="row">
+      <i class="fixed"></i>
+      <i class="grow"></i>
+      <i class="grow-2"></i>
+      <i class="basis"></i>
+    </div>
+
+    <div class="column">
+      <i></i><i></i><i></i>
+    </div>
+
+    <div class="wrap">
+      <i></i><i></i><i></i><i></i><i></i>
+    </div>
+
+    <div class="grid">
+      <i></i><i class="span"></i><i></i><i></i><i></i><i></i>
+    </div>
+
+    <div class="stage">
+      <div class="pin" id="tl"></div>
+      <div class="pin" id="br"></div>
+      <div class="pin" id="stretched"></div>
+    </div>
+
+    <div class="ratio"></div>
+    <div class="bounded"></div>
+
+    <div class="scroller"><i></i></div>
+  </body>
+</html>

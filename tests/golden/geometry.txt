@@ -1,0 +1,39 @@
+0 #document
+  0/0 html @ 0,0 1000x792 | display:block/flow position:static
+    0/0/0 head @ 0,0 0x0 | display:none/none position:static
+      0/0/0/1 meta charset="utf-8" @ 0,0 0x0 | display:none
+      0/0/0/3 title @ 0,0 0x0 | display:none
+        0/0/0/3/0 "Kiln — platform-independent geometry"
+      0/0/0/5 style @ 0,0 0x0 | display:none
+        0/0/0/5/0 <1877 chars>
+    0/0/2 body @ 0,0 1000x792 | display:block/flow position:static
+      0/0/2/1 div.row @ 0,0 1000x76 | display:block/flex position:static
+        0/0/2/1/1 i.fixed @ 18,18 120x40 | display:block/flow position:static
+        0/0/2/1/3 i.grow @ 150,18 189.25x40 | display:block/flow position:static
+        0/0/2/1/5 i.grow-2 @ 351,18 378.75x40 | display:block/flow position:static
+        0/0/2/1/7 i.basis @ 742,18 240x40 | display:block/flow position:static
+      0/0/2/3 div.column @ 0,76 400x108 | display:block/flex position:static
+        0/0/2/3/1 i @ 168,86 207.5x24 | display:block/flow position:static
+        0/0/2/3/2 i @ 168,118 207.5x24 | display:block/flow position:static
+        0/0/2/3/3 i @ 168,150 207.5x24 | display:block/flow position:static
+      0/0/2/5 div.wrap @ 0,184 460x86 | display:block/flex position:static
+        0/0/2/5/1 i @ 8,192 130x30 | display:block/flow position:static
+        0/0/2/5/2 i @ 156,192 130x30 | display:block/flow position:static
+        0/0/2/5/3 i @ 304,192 130x30 | display:block/flow position:static
+        0/0/2/5/4 i @ 8,232 130x30 | display:block/flow position:static
+        0/0/2/5/5 i @ 156,232 130x30 | display:block/flow position:static
+      0/0/2/7 div.grid @ 0,270 1000x132 | display:block/grid position:static
+        0/0/2/7/1 i @ 19,289 233.75x50 | display:block/flow position:static
+        0/0/2/7/2 i.span @ 262,289 476.5x50 | display:block/flow position:static
+        0/0/2/7/3 i @ 747,289 233.75x50 | display:block/flow position:static
+        0/0/2/7/4 i @ 19,353 233.75x30 | display:block/flow position:static
+        0/0/2/7/5 i @ 262,353 233.75x30 | display:block/flow position:static
+        0/0/2/7/6 i @ 505,353 233.75x30 | display:block/flow position:static
+      0/0/2/9 div.stage @ 35,422 965x160 | display:block/flow position:relative
+        0/0/2/9/1 div#tl.pin @ 48,435 80x40 | display:block/flow position:absolute
+        0/0/2/9/3 div#br.pin @ 905,525 80x40 | display:block/flow position:absolute
+        0/0/2/9/5 div#stretched.pin @ 78,485 879x34 | display:block/flow position:absolute
+      0/0/2/11 div.ratio @ 0,582 300x100 | display:block/flow position:static
+      0/0/2/13 div.bounded @ 0,682 380x20 | display:block/flow position:static
+      0/0/2/15 div.scroller @ 0,702 220x90 | display:block/flow position:static
+        0/0/2/15/0 i @ 8,710 500x400 | display:block/flow position:static

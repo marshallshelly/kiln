@@ -1129,6 +1129,18 @@ mod snapshot_tests {
     }
 
     #[test]
+    fn geometry_is_identical_on_every_platform() {
+        // The README claims "identical rendering on every OS", and every other
+        // tree snapshot is compared on macOS alone because box sizes depend on
+        // installed fonts. This page has no laid-out text at all and uses no
+        // font-relative units, so there is nothing left to vary — which makes
+        // it the one golden that can hold the claim rather than assert it.
+        let (dom, script, _native) = load("examples/geometry.html").unwrap();
+        dom.settle(&script);
+        compare("tests/golden/geometry.txt", &dom.snapshot());
+    }
+
+    #[test]
     fn scroll() {
         golden("scroll", &[]);
     }
