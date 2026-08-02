@@ -1224,6 +1224,34 @@ impl Dom {
         self.query_selector("body")
     }
 
+    /// The `href` of every linked stylesheet, which is what
+    /// `reload_stylesheet` matches on.
+    pub fn stylesheet_hrefs(&self) -> Vec<String> {
+        let document = self.document.borrow();
+        let Ok(nodes) = document.query_selector_all("link[rel=stylesheet]") else {
+            return Vec::new();
+        };
+        nodes
+            .into_iter()
+            .filter_map(|id| {
+                let element = document.get_node(id)?.element_data()?;
+                element
+                    .attrs
+                    .iter()
+                    .find(|attr| attr.name.local.as_ref() == "href")
+                    .map(|attr| attr.value.to_string())
+            })
+            .collect()
+    }
+
+    /// Re-fetch one stylesheet and drop the old one, without touching the
+    /// script runtime. This is what makes a CSS edit preserve every scrap of
+    /// application state: nothing is torn down, so there is nothing to restore.
+    pub fn reload_stylesheet(&self, href: &str) {
+        self.document.borrow_mut().reload_resource_by_href(href);
+        self.resolve();
+    }
+
     pub fn scripts(&self) -> Vec<Script> {
         let document = self.document.borrow();
         let Ok(nodes) = document.query_selector_all("script") else {

@@ -34,9 +34,22 @@ fn scheme_of(theme: Option<winit::window::Theme>) -> blitz_traits::shell::ColorS
 pub const DEFAULT_WIDTH: u32 = 1000;
 pub const DEFAULT_HEIGHT: u32 = 700;
 
+/// What a save requires. A stylesheet can be swapped in place; anything else
+/// means rebuilding the document and the script runtime.
+#[derive(Debug, PartialEq)]
+enum Change {
+    Nothing,
+    Styles(Vec<String>),
+    Everything,
+}
+
 struct Watch {
     entry: std::path::PathBuf,
-    stamps: Vec<(std::path::PathBuf, Option<std::time::SystemTime>)>,
+    stamps: Vec<(
+        std::path::PathBuf,
+        Option<String>,
+        Option<std::time::SystemTime>,
+    )>,
 }
 
 impl Watch {
@@ -50,40 +63,80 @@ impl Watch {
         watch
     }
 
-    fn sources(&self, dom: &Dom) -> Vec<std::path::PathBuf> {
+    /// Each watched file, with the stylesheet `href` it came from when it is
+    /// one — that href is what a hot swap needs to name.
+    fn sources(&self, dom: &Dom) -> Vec<(std::path::PathBuf, Option<String>)> {
         let base = self
             .entry
             .parent()
             .unwrap_or_else(|| std::path::Path::new("."));
-        let mut paths = vec![self.entry.clone()];
+        let mut paths = vec![(self.entry.clone(), None)];
         for source in dom.scripts() {
             if let dom::Script::Src { src, .. } = source {
-                paths.push(base.join(src));
+                paths.push((base.join(src), None));
             }
         }
         // A module's imports are not <script src> tags, so without this a save
         // to an imported file changes nothing and the tool looks broken.
         for relative in package::module_dependencies(base, dom) {
-            paths.push(base.join(relative));
+            paths.push((base.join(relative), None));
+        }
+        for href in dom.stylesheet_hrefs() {
+            paths.push((base.join(&href), Some(href)));
         }
         paths
     }
 
-    fn stamp(&self, dom: &Dom) -> Vec<(std::path::PathBuf, Option<std::time::SystemTime>)> {
+    fn stamp(
+        &self,
+        dom: &Dom,
+    ) -> Vec<(
+        std::path::PathBuf,
+        Option<String>,
+        Option<std::time::SystemTime>,
+    )> {
         self.sources(dom)
             .into_iter()
-            .map(|path| {
+            .map(|(path, href)| {
                 let stamp = std::fs::metadata(&path).and_then(|m| m.modified()).ok();
-                (path, stamp)
+                (path, href, stamp)
             })
             .collect()
     }
 
-    fn changed(&mut self, dom: &Dom) -> bool {
+    fn changed(&mut self, dom: &Dom) -> Change {
         let current = self.stamp(dom);
-        let changed = current != self.stamps;
+        if current == self.stamps {
+            return Change::Nothing;
+        }
+
+        // A save is style-only when every file that moved is a stylesheet and
+        // the watched set itself is unchanged. A new or removed file means the
+        // document differs, which no amount of restyling fixes.
+        let same_shape = current.len() == self.stamps.len()
+            && current
+                .iter()
+                .zip(&self.stamps)
+                .all(|(now, before)| now.0 == before.0);
+
+        let styles: Vec<String> = if same_shape {
+            current
+                .iter()
+                .zip(&self.stamps)
+                .filter(|(now, before)| now.2 != before.2)
+                .map(|(now, _)| now.1.clone())
+                .collect::<Option<Vec<String>>>()
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+
         self.stamps = current;
-        changed
+        if styles.is_empty() {
+            Change::Everything
+        } else {
+            Change::Styles(styles)
+        }
     }
 }
 
@@ -176,7 +229,21 @@ impl App {
         let Some(watch) = self.watch.as_mut() else {
             return;
         };
-        if !watch.changed(&self.dom) {
+        let change = watch.changed(&self.dom);
+        if change == Change::Nothing {
+            return;
+        }
+
+        // The whole point of distinguishing the two: a stylesheet is swapped
+        // under the running app, so nothing is torn down and no state is lost.
+        if let Change::Styles(hrefs) = change {
+            for href in &hrefs {
+                self.dom.reload_stylesheet(href);
+            }
+            println!("restyled {}", hrefs.join(", "));
+            if let Some(window) = self.window.as_ref() {
+                window.request_redraw();
+            }
             return;
         }
 
@@ -1352,15 +1419,19 @@ mod snapshot_tests {
 
         // The referenced script is watched, not just the entry.
         assert_eq!(watch.sources(&dom).len(), 2);
-        assert!(!watch.changed(&dom), "nothing changed yet");
+        assert_eq!(watch.changed(&dom), Change::Nothing, "nothing changed yet");
 
         // mtime has second granularity on some filesystems, so move it
         // explicitly rather than racing the clock.
         let past = std::time::SystemTime::now() - std::time::Duration::from_secs(5);
         std::fs::write(&script, "globalThis.x = 2;\n").unwrap();
         filetime_set(&script, past);
-        assert!(watch.changed(&dom), "editing a script should be noticed");
-        assert!(!watch.changed(&dom), "and only once");
+        assert_eq!(
+            watch.changed(&dom),
+            Change::Everything,
+            "editing a script rebuilds the runtime"
+        );
+        assert_eq!(watch.changed(&dom), Change::Nothing, "and only once");
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -1405,6 +1476,63 @@ mod snapshot_tests {
     }
 
     #[test]
+    fn a_stylesheet_edit_is_swapped_not_reloaded() {
+        // The distinction is the whole feature: a full reload rebuilds the
+        // script runtime and loses every scrap of application state, so a CSS
+        // edit must not be classified as one.
+        let dir = std::env::temp_dir().join("kiln-hmr-css");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let entry = dir.join("index.html");
+        let sheet = dir.join("style.css");
+        std::fs::write(&sheet, "#a { width: 100px; height: 10px }").unwrap();
+        std::fs::write(
+            &entry,
+            "<html><head><link rel=\"stylesheet\" href=\"style.css\"></head>\
+             <body><div id=\"a\"></div></body></html>",
+        )
+        .unwrap();
+
+        let (dom, script, _native) = load(entry.to_str().unwrap()).unwrap();
+        dom.settle(&script);
+        let mut watch = Watch::new(entry.to_str().unwrap(), &dom);
+
+        let width = |dom: &Dom| {
+            let node = dom.query_selector("#a").unwrap();
+            dom.box_metrics(node).unwrap()[0]
+        };
+        assert_eq!(width(&dom), 100.0);
+
+        let past = std::time::SystemTime::now() - std::time::Duration::from_secs(5);
+        std::fs::write(&sheet, "#a { width: 250px; height: 10px }").unwrap();
+        filetime_set(&sheet, past);
+
+        assert_eq!(
+            watch.changed(&dom),
+            Change::Styles(vec!["style.css".to_string()]),
+            "a stylesheet edit is a swap, not a rebuild"
+        );
+
+        // State that a full reload would destroy.
+        script.eval("globalThis.__survives = 42;").unwrap();
+
+        // And the swap actually restyles, against the same document and the
+        // same script runtime that were already running.
+        dom.reload_stylesheet("style.css");
+        dom.settle(&script);
+        assert_eq!(width(&dom), 250.0, "the new rule applied without a reload");
+
+        assert_eq!(
+            script.evaluate("globalThis.__survives").unwrap(),
+            "42",
+            "the script runtime was never torn down"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn watch_notices_a_module_a_module_imports() {
         // Editing an imported file has to reload, or dev looks broken: you save
         // and nothing happens. Imports are invisible to anything that only
@@ -1432,13 +1560,17 @@ mod snapshot_tests {
             2,
             "the entry and the module it imports"
         );
-        assert!(!watch.changed(&dom), "nothing changed yet");
+        assert_eq!(watch.changed(&dom), Change::Nothing, "nothing changed yet");
 
         let past = std::time::SystemTime::now() - std::time::Duration::from_secs(5);
         std::fs::write(&imported, "export const value = 2;\n").unwrap();
         filetime_set(&imported, past);
-        assert!(watch.changed(&dom), "editing an imported module reloads");
-        assert!(!watch.changed(&dom), "and only once");
+        assert_eq!(
+            watch.changed(&dom),
+            Change::Everything,
+            "editing an imported module reloads"
+        );
+        assert_eq!(watch.changed(&dom), Change::Nothing, "and only once");
 
         let _ = std::fs::remove_dir_all(&dir);
     }
