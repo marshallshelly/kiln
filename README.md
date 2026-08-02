@@ -49,7 +49,7 @@ Honesty is the product, so here is the unflattering version.
 | **M6** | ✅ | accessibility tree, native menus, tray, clipboard, dialogs, notifications |
 | **M7** | ✅ | `init`, `dev` with CSS hot-swap and reload on save, `check`, `build`, DevTools over CDP |
 | **M8** | ✅ | **Preact runs unmodified. Tailwind works.** |
-| **M9** | ◐ | `.app`/`.dmg`, `.deb` and `.msi` all build and install; the updater replaces an app's assets but not its runtime binary; signing and notarization are implemented but **unverified** — they need a Developer ID |
+| **M9** | ◐ | installers for all three platforms build and install, and a shipped app can update its own assets. **`--sign` and `--notarize` have never been run with a real certificate** — if you sign a macOS build, you are the first |
 | **M10** | ✅ | automation over CDP including screenshots, record/replay as a determinism oracle |
 
 M3 is when this becomes demonstrable. M8 is when you could port something real. **ES modules landed after M10**, which is when an off-the-shelf Vite build started working.
@@ -610,7 +610,7 @@ The bundle carries the Kiln runtime, your page renamed to `index.html`, and ever
 
 Two empty installers once shipped green, which is why every artifact is now size-asserted rather than existence-checked: a `.msi` built from relative `File Source` paths was 5,942 bytes, and one with an external cabinet was 32,768 bytes with a 10.6 MB `.cab` sitting beside it. Both *succeeded*.
 
-`--sign` and `--notarize` shell out to Apple's own `codesign` and `notarytool`. Both are implemented and **neither has been run end to end here**, because that needs a Developer ID certificate.
+`--sign` and `--notarize` shell out to Apple's own `codesign` and `notarytool`. Both are written and **neither has ever been run end to end**, because that needs a Developer ID certificate. Treat them as untested code paths: if you sign a build and something is wrong with the flags or the ordering, you will be the one to find it. An issue with the output of `codesign --verify --deep --strict` would be a genuinely useful contribution.
 
 ### Updating a shipped app
 
