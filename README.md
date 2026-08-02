@@ -277,17 +277,17 @@ Events can be driven without a mouse, which is how the counter above was verifie
 ```console
 $ kiln render examples/counter.html out.png --click "#inc" --click "#dec"
 $ kiln render examples/counter.html out.png --click-at 642,351
-$ kiln render examples/controls.html out.png --hover ".box"
+$ kiln render examples/controls.html out.png --click "summary" --hover ".box"
 ```
 
-All three synthesize real pointer events and run the same `EventDriver` path the window uses — `--click` just resolves a selector to its centre point first.
+All of them synthesize real pointer events and run the same `EventDriver` path the window uses — `--click` just resolves a selector to its centre point first. Flags apply **in the order you write them**, so the last line above opens the disclosure and *then* moves the pointer onto the box.
 
 ## Preact runs
 
 An unmodified Preact build renders and updates against Kiln's DOM, hooks and all:
 
 <p align="center">
-  <img src="assets/preact.png" width="620" alt="A Preact counter showing 4, with five conditional tags, four of them highlighted">
+  <img src="assets/preact.png" width="620" alt="A Preact counter showing 2, with five conditional tags, two of them highlighted">
 </p>
 
 ```console

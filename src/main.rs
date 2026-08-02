@@ -494,14 +494,33 @@ fn open(input: &str, watch: bool, inspect: Option<u16>) -> Result<()> {
     }
 }
 
+enum Action {
+    Click(String),
+    ClickAt(String),
+    Hover(String),
+    Scroll(String),
+    Type(String),
+    Press(String),
+}
+
+impl Action {
+    fn parse(flag: &str, value: &str) -> Option<Self> {
+        let value = value.to_string();
+        match flag {
+            "--click" => Some(Self::Click(value)),
+            "--click-at" => Some(Self::ClickAt(value)),
+            "--hover" => Some(Self::Hover(value)),
+            "--scroll" => Some(Self::Scroll(value)),
+            "--type" => Some(Self::Type(value)),
+            "--press" => Some(Self::Press(value)),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Default)]
 struct Run {
-    clicks: Vec<String>,
-    points: Vec<String>,
-    hovers: Vec<String>,
-    scrolls: Vec<String>,
-    types: Vec<String>,
-    presses: Vec<String>,
+    actions: Vec<Action>,
     snapshot: Option<String>,
     at: Option<String>,
     a11y: Option<String>,
@@ -509,14 +528,21 @@ struct Run {
     dark: bool,
 }
 
+fn click_at(dom: &Dom, script: &Script, x: f32, y: f32) -> Result<()> {
+    for event in [
+        events::pointer_button(x, y, MouseButton::Left, ElementState::Pressed),
+        events::pointer_button(x, y, MouseButton::Left, ElementState::Released),
+    ] {
+        for dispatch in dom.drive(event) {
+            script.dispatch(&dispatch)?;
+        }
+    }
+    Ok(())
+}
+
 fn render(input: &str, output: &str, run: &Run) -> Result<()> {
     let Run {
-        clicks,
-        points,
-        hovers,
-        scrolls,
-        types,
-        presses,
+        actions,
         snapshot,
         at,
         a11y,
@@ -529,108 +555,92 @@ fn render(input: &str, output: &str, run: &Run) -> Result<()> {
         dom.set_color_scheme(blitz_traits::shell::ColorScheme::Dark);
     }
 
-    let mut targets: Vec<(f32, f32)> = Vec::new();
-
     dom.settle(&script);
 
-    for selector in hovers {
-        let node = dom
-            .query_selector(selector)
-            .with_context(|| format!("no element matches {selector}"))?;
-        let (x, y) = dom
-            .center_of(node)
-            .with_context(|| format!("{selector} has no layout box"))?;
-        for dispatch in dom.drive(events::pointer_move(x, y)) {
-            script.dispatch(&dispatch)?;
-        }
-        dom.settle(&script);
-    }
-
-    for selector in clicks {
-        let node = dom
-            .query_selector(selector)
-            .with_context(|| format!("no element matches {selector}"))?;
-        let (x, y) = dom
-            .center_of(node)
-            .with_context(|| format!("{selector} has no layout box"))?;
-        targets.push((x, y));
-    }
-
-    for point in points {
-        let (x, y) = point.split_once(',').context("--click-at expects X,Y")?;
-        targets.push((
-            x.trim().parse().context("--click-at X")?,
-            y.trim().parse().context("--click-at Y")?,
-        ));
-    }
-
-    for (x, y) in targets {
-        for event in [
-            events::pointer_button(x, y, MouseButton::Left, ElementState::Pressed),
-            events::pointer_button(x, y, MouseButton::Left, ElementState::Released),
-        ] {
-            for dispatch in dom.drive(event) {
-                script.dispatch(&dispatch)?;
-            }
-        }
-        dom.settle(&script);
-    }
-
-    for text in types {
-        for ch in text.chars() {
-            let ch = ch.to_string();
-            for pressed in [true, false] {
-                for dispatch in dom.drive(events::text_key(&ch, pressed)) {
+    for action in actions {
+        match action {
+            Action::Hover(selector) => {
+                let node = dom
+                    .query_selector(selector)
+                    .with_context(|| format!("no element matches {selector}"))?;
+                let (x, y) = dom
+                    .center_of(node)
+                    .with_context(|| format!("{selector} has no layout box"))?;
+                for dispatch in dom.drive(events::pointer_move(x, y)) {
                     script.dispatch(&dispatch)?;
                 }
             }
-        }
-        dom.settle(&script);
-    }
-
-    for name in presses {
-        for pressed in [true, false] {
-            let event =
-                events::named(name, pressed).with_context(|| format!("unknown key {name}"))?;
-            for dispatch in dom.drive(event) {
-                script.dispatch(&dispatch)?;
+            Action::Click(selector) => {
+                let node = dom
+                    .query_selector(selector)
+                    .with_context(|| format!("no element matches {selector}"))?;
+                let (x, y) = dom
+                    .center_of(node)
+                    .with_context(|| format!("{selector} has no layout box"))?;
+                click_at(&dom, &script, x, y)?;
             }
-        }
-        dom.settle(&script);
-    }
+            Action::ClickAt(point) => {
+                let (x, y) = point.split_once(',').context("--click-at expects X,Y")?;
+                click_at(
+                    &dom,
+                    &script,
+                    x.trim().parse().context("--click-at X")?,
+                    y.trim().parse().context("--click-at Y")?,
+                )?;
+            }
+            Action::Type(text) => {
+                for ch in text.chars() {
+                    let ch = ch.to_string();
+                    for pressed in [true, false] {
+                        for dispatch in dom.drive(events::text_key(&ch, pressed)) {
+                            script.dispatch(&dispatch)?;
+                        }
+                    }
+                }
+            }
+            Action::Press(name) => {
+                for pressed in [true, false] {
+                    let event = events::named(name, pressed)
+                        .with_context(|| format!("unknown key {name}"))?;
+                    for dispatch in dom.drive(event) {
+                        script.dispatch(&dispatch)?;
+                    }
+                }
+            }
+            Action::Scroll(spec) => {
+                let mut parts = spec.split(',');
+                let selector = parts.next().context("--scroll expects SELECTOR,DX,DY")?;
+                let dx: f64 = parts
+                    .next()
+                    .context("--scroll DX")?
+                    .trim()
+                    .parse()
+                    .context("--scroll DX")?;
+                let dy: f64 = parts
+                    .next()
+                    .context("--scroll DY")?
+                    .trim()
+                    .parse()
+                    .context("--scroll DY")?;
 
-    for spec in scrolls {
-        let mut parts = spec.split(',');
-        let selector = parts.next().context("--scroll expects SELECTOR,DX,DY")?;
-        let dx: f64 = parts
-            .next()
-            .context("--scroll DX")?
-            .trim()
-            .parse()
-            .context("--scroll DX")?;
-        let dy: f64 = parts
-            .next()
-            .context("--scroll DY")?
-            .trim()
-            .parse()
-            .context("--scroll DY")?;
+                let node = dom
+                    .query_selector(selector.trim())
+                    .with_context(|| format!("no element matches {selector}"))?;
+                let (x, y) = dom
+                    .center_of(node)
+                    .with_context(|| format!("{selector} has no layout box"))?;
 
-        let node = dom
-            .query_selector(selector.trim())
-            .with_context(|| format!("no element matches {selector}"))?;
-        let (x, y) = dom
-            .center_of(node)
-            .with_context(|| format!("{selector} has no layout box"))?;
-
-        for dispatch in dom.drive(events::pointer_move(x, y)) {
-            script.dispatch(&dispatch)?;
-        }
-        for dispatch in dom.drive(events::wheel_pixels(x, y, dx, dy)) {
-            script.dispatch(&dispatch)?;
-        }
-        let anchor = dom.hover_node();
-        for dispatch in dom.scroll(anchor, -dx, -dy) {
-            script.dispatch(&dispatch)?;
+                for dispatch in dom.drive(events::pointer_move(x, y)) {
+                    script.dispatch(&dispatch)?;
+                }
+                for dispatch in dom.drive(events::wheel_pixels(x, y, dx, dy)) {
+                    script.dispatch(&dispatch)?;
+                }
+                let anchor = dom.hover_node();
+                for dispatch in dom.scroll(anchor, -dx, -dy) {
+                    script.dispatch(&dispatch)?;
+                }
+            }
         }
         dom.settle(&script);
     }
@@ -982,12 +992,10 @@ fn main() -> Result<()> {
                     .collect()
             };
             let run = Run {
-                clicks: flag("--click"),
-                points: flag("--click-at"),
-                hovers: flag("--hover"),
-                scrolls: flag("--scroll"),
-                types: flag("--type"),
-                presses: flag("--press"),
+                actions: args
+                    .windows(2)
+                    .filter_map(|pair| Action::parse(&pair[0], &pair[1]))
+                    .collect(),
                 snapshot: flag("--snapshot").into_iter().next(),
                 at: flag("--at").into_iter().next(),
                 a11y: flag("--a11y").into_iter().next(),
@@ -1698,6 +1706,34 @@ mod snapshot_tests {
             "var li = document.createElement(\"li\"); li.textContent = \"{label}\"; \
              document.getElementById(\"o\").appendChild(li);"
         )
+    }
+
+    #[test]
+    fn interactions_run_in_the_order_they_were_written() {
+        let argv: Vec<String> = ["--click", "#a", "--hover", ".b", "--type", "x", "--click", "#c"]
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+
+        let written: Vec<String> = argv
+            .windows(2)
+            .filter_map(|pair| Action::parse(&pair[0], &pair[1]))
+            .map(|action| match action {
+                Action::Click(v) => format!("click {v}"),
+                Action::ClickAt(v) => format!("click-at {v}"),
+                Action::Hover(v) => format!("hover {v}"),
+                Action::Scroll(v) => format!("scroll {v}"),
+                Action::Type(v) => format!("type {v}"),
+                Action::Press(v) => format!("press {v}"),
+            })
+            .collect();
+
+        assert_eq!(
+            written,
+            ["click #a", "hover .b", "type x", "click #c"],
+            "grouping the flags by kind would hover before both clicks, which is \
+             a different interaction than the one the command describes"
+        );
     }
 
     #[test]
