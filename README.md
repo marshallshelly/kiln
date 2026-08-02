@@ -63,7 +63,7 @@ M3 is when this becomes demonstrable. M8 is when you could port something real. 
 |---|---|---|---|
 | Author in HTML/CSS/TS | yes | yes | yes |
 | Ships a browser | Chromium | borrows the OS WebView | **no** |
-| Identical rendering on every OS | yes | **no** | yes |
+| Identical rendering on every OS | yes | **no** | yes — [layout is asserted on all three platforms](#building) |
 | You control the engine | no | no | **yes** |
 | Full CSS support | yes | yes | **no — see [The subset](#the-subset)** |
 | Production ready | yes | yes | **no — see [Status](#status)** |
@@ -570,9 +570,27 @@ each. Exactly one test paints — the CDP screenshot — and it is skipped on
 Windows, whose runners have no GPU adapter and where wgpu aborts the process
 rather than returning an error. Everything else is GPU-free by design.
 
-Tree snapshots record box sizes and therefore only *compare* on macOS, where
-they were blessed — but they still run everywhere. The CSS report, the
-accessibility tree and the menu model are identical on every platform and are
+Most tree snapshots record box sizes that depend on installed fonts, so they
+only *compare* on macOS where they were blessed — though they still run
+everywhere, which is what catches panics and logic errors.
+
+[`examples/geometry.html`](examples/geometry.html) is the exception, and it
+exists to hold the "identical rendering" claim rather than let it sit as an
+assertion. It has no laid-out text and no font-relative units, so nothing is
+left to vary, and its golden is compared on **all three platforms**. It covers
+flex grow and basis, wrapping, grid with `fr` and spans, absolute insets
+including a stretched one, `aspect-ratio`, min/max clamping, and a scroll
+container — that last one because scrollbar reservation was the most plausible
+thing to differ.
+
+It was blessed on macOS and passes byte-for-byte on Linux and Windows.
+
+**What that does and does not prove.** Layout is identical: the same stylesheet
+produces the same boxes, to the quarter-pixel, on every platform. It does not
+prove text is, because the runners have different fonts installed — though an
+app that vendors its own fonts, as most do, feeds the same file to the same
+shaper everywhere. And it compares layout, not pixels; paint-level identity is
+still unverified. The CSS report, the accessibility tree and the menu model are
 asserted on all three.
 
 ## Contributing
