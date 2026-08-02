@@ -1710,10 +1710,12 @@ mod snapshot_tests {
 
     #[test]
     fn interactions_run_in_the_order_they_were_written() {
-        let argv: Vec<String> = ["--click", "#a", "--hover", ".b", "--type", "x", "--click", "#c"]
-            .iter()
-            .map(ToString::to_string)
-            .collect();
+        let argv: Vec<String> = [
+            "--click", "#a", "--hover", ".b", "--type", "x", "--click", "#c",
+        ]
+        .iter()
+        .map(ToString::to_string)
+        .collect();
 
         let written: Vec<String> = argv
             .windows(2)
