@@ -8,16 +8,25 @@ use blitz_traits::events::UiEvent;
 use blitz_traits::shell::{ColorScheme, Viewport};
 
 pub enum Script {
-    Inline { code: String, module: bool },
-    Src { src: String, module: bool },
+    Inline {
+        code: String,
+        module: bool,
+    },
+    Src {
+        src: String,
+        module: bool,
+        defer: bool,
+    },
 }
 
 impl Script {
-    /// A module script is deferred: a browser runs it after parsing, not where
-    /// the tag sits.
-    pub fn is_module(&self) -> bool {
+    /// Whether a browser would run this after parsing rather than where the tag
+    /// sits. Modules always are; a classic script is only when it is external,
+    /// since `defer` on an inline script is ignored.
+    pub fn is_deferred(&self) -> bool {
         match self {
-            Self::Inline { module, .. } | Self::Src { module, .. } => *module,
+            Self::Inline { module, .. } => *module,
+            Self::Src { module, defer, .. } => *module || *defer,
         }
     }
 }
@@ -1266,7 +1275,11 @@ impl Dom {
                     .attribute(id, "type")
                     .is_some_and(|kind| kind.trim().eq_ignore_ascii_case("module"));
                 match self.attribute(id, "src") {
-                    Some(src) if !src.trim().is_empty() => Some(Script::Src { src, module }),
+                    Some(src) if !src.trim().is_empty() => Some(Script::Src {
+                        src,
+                        module,
+                        defer: self.attribute(id, "defer").is_some(),
+                    }),
                     _ => {
                         let code = self.text_content(id);
                         (!code.trim().is_empty()).then_some(Script::Inline { code, module })

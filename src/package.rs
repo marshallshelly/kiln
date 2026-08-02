@@ -58,9 +58,9 @@ pub fn module_dependencies(base: &Path, dom: &crate::dom::Dom) -> Vec<String> {
     let mut found: Vec<(PathBuf, String)> = Vec::new();
     for source in dom.scripts() {
         match source {
-            crate::dom::Script::Src { src, module: true } => {
-                collect_imports(base, &src, &mut found)
-            }
+            crate::dom::Script::Src {
+                src, module: true, ..
+            } => collect_imports(base, &src, &mut found),
             crate::dom::Script::Inline { code, module: true } => {
                 for specifier in imports_of(&code) {
                     collect_imports_from(base, &specifier, &mut found);

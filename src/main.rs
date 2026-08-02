@@ -410,8 +410,10 @@ fn load(input: &str) -> Result<(Dom, Script, std::rc::Rc<native::Native>)> {
     // Classic scripts run where the parser meets them; module scripts are
     // deferred until parsing is done, so they go in a second pass rather than
     // in document order with the rest.
-    let (deferred, immediate): (Vec<_>, Vec<_>) =
-        dom.scripts().into_iter().partition(dom::Script::is_module);
+    let (deferred, immediate): (Vec<_>, Vec<_>) = dom
+        .scripts()
+        .into_iter()
+        .partition(dom::Script::is_deferred);
 
     for source in immediate.into_iter().chain(deferred) {
         match source {
@@ -420,7 +422,7 @@ fn load(input: &str) -> Result<(Dom, Script, std::rc::Rc<native::Native>)> {
                 module: false,
             } => script.eval(&code)?,
             dom::Script::Inline { code, module: true } => script.eval_module(input, &code)?,
-            dom::Script::Src { src, module } => {
+            dom::Script::Src { src, module, .. } => {
                 let file = base.join(&src);
                 let code = std::fs::read_to_string(&file)
                     .with_context(|| format!("read script {}", file.display()))?;
@@ -1530,6 +1532,83 @@ mod snapshot_tests {
         );
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Runs a page through `load` and reports the order its scripts appended
+    /// their markers, so the assertion is about the real execution path.
+    fn script_order(name: &str, body: &str, files: &[(&str, &str)]) -> Vec<String> {
+        let dir = std::env::temp_dir().join(name);
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for (file, contents) in files {
+            std::fs::write(dir.join(file), contents).unwrap();
+        }
+
+        let entry = dir.join("index.html");
+        std::fs::write(
+            &entry,
+            format!("<html><body><ul id=\"o\"></ul>{body}</body></html>"),
+        )
+        .unwrap();
+
+        let (dom, script, _native) = load(entry.to_str().unwrap()).unwrap();
+        dom.settle(&script);
+
+        let order = dom
+            .snapshot()
+            .lines()
+            .filter_map(|line| line.split_once('"'))
+            .filter_map(|(_, rest)| rest.strip_suffix('"').map(str::to_string))
+            .collect();
+        let _ = std::fs::remove_dir_all(&dir);
+        order
+    }
+
+    fn appends(label: &str) -> String {
+        format!(
+            "var li = document.createElement(\"li\"); li.textContent = \"{label}\"; \
+             document.getElementById(\"o\").appendChild(li);"
+        )
+    }
+
+    #[test]
+    fn a_deferred_script_runs_after_the_parser_reaches_the_end() {
+        let order = script_order(
+            "kiln-defer-src",
+            "<script defer src=\"late.js\"></script><script src=\"early.js\"></script>",
+            &[
+                ("late.js", &appends("deferred")),
+                ("early.js", &appends("immediate")),
+            ],
+        );
+
+        assert_eq!(
+            order,
+            ["immediate", "deferred"],
+            "defer moves an external script past the ones that follow it"
+        );
+    }
+
+    #[test]
+    fn defer_on_an_inline_script_is_ignored() {
+        // The spec only defers external scripts. Treating the attribute as
+        // deferring everything would look right in the common case and be
+        // wrong here, which is why this test exists rather than only the one
+        // above.
+        let order = script_order(
+            "kiln-defer-inline",
+            &format!(
+                "<script defer>{}</script><script src=\"other.js\"></script>",
+                appends("inline")
+            ),
+            &[("other.js", &appends("external"))],
+        );
+
+        assert_eq!(
+            order,
+            ["inline", "external"],
+            "an inline script runs where it sits, defer or not"
+        );
     }
 
     #[test]
