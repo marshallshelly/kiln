@@ -6,6 +6,7 @@ mod native;
 mod package;
 mod replay;
 mod script;
+mod update;
 
 use std::sync::Arc;
 
@@ -758,6 +759,10 @@ fn package(input: &str, args: &[String]) -> Result<()> {
         deb: args.iter().any(|arg| arg == "--deb"),
         msi: args.iter().any(|arg| arg == "--msi"),
         notarize: flag("--notarize"),
+        update: match (flag("--update-url"), flag("--update-key")) {
+            (Some(url), Some(key)) => Some((url, key)),
+            _ => None,
+        },
         name,
     };
 
@@ -837,7 +842,10 @@ fn usage() -> ! {
     eprintln!("  kiln package <page.html>           build a .app");
     eprintln!("        [--name N] [--identifier ID] [--version V] [--out DIR]");
     eprintln!("        [--dmg] (macOS)  [--deb] (Linux)  [--msi] (Windows)");
-    eprintln!("        [--sign IDENTITY] [--notarize PROFILE]");
+    eprintln!(
+        "        [--sign IDENTITY] [--notarize PROFILE]
+        [--update-url URL --update-key MINISIGN_PUBKEY]"
+    );
     eprintln!("  kiln render <page.html> [out.png]  render headless to a PNG");
     eprintln!("        [--click <selector>] [--click-at <x,y>] [--hover <selector>]");
     eprintln!("        [--type <text>] [--press <key>] [--scroll <selector,dx,dy>]");
@@ -926,7 +934,15 @@ fn main() -> Result<()> {
         }
         Some(other) => bail!("unknown command: {other}"),
         None => match bundled_entry() {
-            Some(entry) => open(&entry.to_string_lossy(), false, None),
+            Some(entry) => {
+                // The tree a previous update moved aside. Removing it here
+                // rather than during the swap means nothing is deleted while
+                // the app might still be reading from it.
+                if let Some(app_dir) = entry.parent() {
+                    update::discard_previous(app_dir);
+                }
+                open(&entry.to_string_lossy(), false, None)
+            }
             None => usage(),
         },
     }
@@ -1447,6 +1463,7 @@ mod snapshot_tests {
             deb: false,
             msi: false,
             notarize: None,
+            update: None,
         };
         let app = package::bundle(entry, &dom, &options).unwrap();
 

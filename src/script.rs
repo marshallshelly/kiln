@@ -976,6 +976,12 @@ globalThis.kiln = {
     message(title, body) { __kiln.messageBox(String(title || ""), String(body || "")); },
   },
   notify(title, body) { return __kiln.notify(String(title || ""), String(body || "")); },
+  update: {
+    // Returns the offered version, or null when there is nothing newer. The
+    // app decides how to present it; Kiln does not draw update UI.
+    check() { return __kiln.updateCheck(); },
+    apply() { return __kiln.updateApply(); },
+  },
 };
 
 globalThis.NodeFilter = {
@@ -1391,6 +1397,14 @@ impl Script {
                 bind!("scrollTo", d, move |id: usize, x: f64, y: f64| {
                     d.scroll_node_to(id, x, y);
                 });
+                kiln.set(
+                    "updateCheck",
+                    Function::new(ctx.clone(), crate::update::check_binding)?,
+                )?;
+                kiln.set(
+                    "updateApply",
+                    Function::new(ctx.clone(), crate::update::apply_binding)?,
+                )?;
                 bind!("viewportSize", d, move || d.viewport_size());
                 bind!("computedStyle", d, move |id: usize| d.computed_style(id));
 

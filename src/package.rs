@@ -14,6 +14,9 @@ pub struct Options {
     /// A `notarytool` keychain profile, created once with
     /// `xcrun notarytool store-credentials`.
     pub notarize: Option<String>,
+    /// `(manifest url, minisign public key)`. Absent means the app has no
+    /// update path at all and never reaches the network.
+    pub update: Option<(String, String)>,
 }
 
 /// Static import specifiers, so a module's dependencies travel with it. A
@@ -185,8 +188,20 @@ pub fn bundle(entry: &Path, dom: &crate::dom::Dom, options: &Options) -> Result<
 
 /// Copy the page and everything it references into `root`, with the entry
 /// renamed so a packaged app always looks for the same file.
-fn stage_assets(entry: &Path, dom: &crate::dom::Dom, root: &Path) -> Result<()> {
+fn stage_assets(entry: &Path, dom: &crate::dom::Dom, root: &Path, options: &Options) -> Result<()> {
     std::fs::create_dir_all(root).with_context(|| format!("create {}", root.display()))?;
+
+    // Beside the app directory, never inside it: an update that could rewrite
+    // the key would be authorising all the updates after it.
+    if let Some((url, key)) = &options.update {
+        crate::update::Config {
+            url: url.clone(),
+            key: key.clone(),
+            version: semver::Version::parse(&options.version)
+                .with_context(|| format!("--version {} is not semver", options.version))?,
+        }
+        .save(root)?;
+    }
     for (from, relative) in assets(entry, dom)? {
         let to = root.join(&relative);
         if let Some(parent) = to.parent() {
@@ -220,7 +235,7 @@ fn linux(entry: &Path, dom: &crate::dom::Dom, options: &Options) -> Result<PathB
 
     let runtime = std::env::current_exe().context("locate the kiln binary")?;
     std::fs::copy(&runtime, libdir.join(&slug)).context("copy the runtime")?;
-    stage_assets(entry, dom, &libdir.join("app"))?;
+    stage_assets(entry, dom, &libdir.join("app"), options)?;
 
     let bindir = staging.join("usr/bin");
     std::fs::create_dir_all(&bindir).context("create usr/bin")?;
@@ -294,7 +309,7 @@ fn windows(entry: &Path, dom: &crate::dom::Dom, options: &Options) -> Result<Pat
     let runtime = std::env::current_exe().context("locate the kiln binary")?;
     std::fs::copy(&runtime, dir.join(format!("{}.exe", options.name)))
         .context("copy the runtime")?;
-    stage_assets(entry, dom, &dir.join("app"))?;
+    stage_assets(entry, dom, &dir.join("app"), options)?;
 
     if !options.msi {
         println!("  {}", dir.display());
@@ -434,7 +449,7 @@ fn macos(entry: &Path, dom: &crate::dom::Dom, options: &Options) -> Result<PathB
     std::fs::write(contents.join("Info.plist"), info_plist(options)).context("write Info.plist")?;
     std::fs::write(contents.join("PkgInfo"), "APPL????").context("write PkgInfo")?;
 
-    stage_assets(entry, dom, &resources)?;
+    stage_assets(entry, dom, &resources, options)?;
 
     if let Some(identity) = &options.sign {
         sign(&app, identity)?;
