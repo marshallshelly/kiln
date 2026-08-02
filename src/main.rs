@@ -60,6 +60,11 @@ impl Watch {
                 paths.push(base.join(src));
             }
         }
+        // A module's imports are not <script src> tags, so without this a save
+        // to an imported file changes nothing and the tool looks broken.
+        for relative in package::module_dependencies(base, dom) {
+            paths.push(base.join(relative));
+        }
         paths
     }
 
@@ -1282,6 +1287,45 @@ mod snapshot_tests {
         std::fs::write(&script, "globalThis.x = 2;\n").unwrap();
         filetime_set(&script, past);
         assert!(watch.changed(&dom), "editing a script should be noticed");
+        assert!(!watch.changed(&dom), "and only once");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn watch_notices_a_module_a_module_imports() {
+        // Editing an imported file has to reload, or dev looks broken: you save
+        // and nothing happens. Imports are invisible to anything that only
+        // walks <script src>.
+        let dir = std::env::temp_dir().join("kiln-watch-modules");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("lib")).unwrap();
+
+        let entry = dir.join("index.html");
+        let imported = dir.join("lib/dep.js");
+        std::fs::write(&imported, "export const value = 1;\n").unwrap();
+        std::fs::write(
+            &entry,
+            "<html><body><script type=\"module\">\
+             import { value } from \"./lib/dep.js\"; globalThis.v = value;\
+             </script></body></html>",
+        )
+        .unwrap();
+
+        let (dom, _script, _native) = load(entry.to_str().unwrap()).unwrap();
+        let mut watch = Watch::new(entry.to_str().unwrap(), &dom);
+
+        assert_eq!(
+            watch.sources(&dom).len(),
+            2,
+            "the entry and the module it imports"
+        );
+        assert!(!watch.changed(&dom), "nothing changed yet");
+
+        let past = std::time::SystemTime::now() - std::time::Duration::from_secs(5);
+        std::fs::write(&imported, "export const value = 2;\n").unwrap();
+        filetime_set(&imported, past);
+        assert!(watch.changed(&dom), "editing an imported module reloads");
         assert!(!watch.changed(&dom), "and only once");
 
         let _ = std::fs::remove_dir_all(&dir);
