@@ -81,9 +81,57 @@ The size target is roughly met, and the trajectory is documented: 25.1 MB before
 
 The other two are the GPU stack, and the split says so. `kiln check` parses, cascades and lays out with no renderer at all: **26.6 MB**. Adding wgpu and Vello for a headless render takes it to **56.0 MB**. A real window with a swapchain reaches **117 MB**. So roughly a quarter of resident memory is the engine this project actually writes, and the rest is the renderer it assembles.
 
-**And the first launch is far worse than the steady state** — 1.1 to 1.6 seconds against 175 ms warm. Something warms up system-wide on first run; it is not the binary's page cache, since a freshly copied binary is slow once and then fast. That is unattributed, and saying so is more useful than guessing.
+**The first launch is far worse than the steady state, and the cause is now known.** It is Vello's shaders being compiled for the GPU and cached by the OS. Move macOS's Metal shader cache aside and the next launch takes **1949 ms**; the one straight after it, with the cache repopulated, takes **233 ms**. That is the whole gap.
+
+It also explains the odd part: a freshly *copied* binary was slow once and then fast, because the cache is system-wide rather than per-binary. A rebuild does not reproduce it either. So the cost is paid once per machine, by whichever Vello application runs first — not once per install of your app.
+
+Nothing in `src/` can fix that. Shipping precompiled shader archives is a wgpu and Vello concern, and it is the single largest startup win available if it ever lands there.
 
 None of this is compared against Electron or Tauri, because nothing here runs them. Treat it as a floor to improve on and a regression check, not as a competitive claim.
+
+## Getting started
+
+There is no published crate yet, so install from the repository:
+
+```console
+$ cargo install --git https://github.com/marshallshelly/kiln
+```
+
+Or build it locally, which is what you want if you plan to change anything:
+
+```console
+$ git clone https://github.com/marshallshelly/kiln
+$ cd kiln
+$ cargo build --release        # target/release/kiln
+```
+
+On Linux you also need GTK, `libxdo` and appindicator for the native menu, tray
+and dialog surfaces, plus X11 and Wayland headers for the window. macOS and
+Windows need nothing beyond a recent Rust toolchain.
+
+Then scaffold something and open it:
+
+```console
+$ kiln init my-app
+$ kiln dev  my-app/index.html
+```
+
+`kiln init` writes a working counter that is already inside the CSS subset, and
+`kiln dev` opens it in a real window and watches it — a CSS edit swaps the
+stylesheet without losing state, and a JS edit reloads.
+
+**Bringing an existing app.** If it builds to static HTML, CSS and JavaScript,
+point Kiln at the output. For a Vite project that means one flag:
+
+```console
+$ vite build --base ./          # relative asset paths, not /assets/…
+$ kiln check dist/index.html    # what CSS Kiln cannot honour, before you debug it
+$ kiln dev   dist/index.html
+```
+
+Run `kiln check` first. It is faster than discovering the gaps by looking at
+wrong pixels, and it is the difference between an incomplete engine and an
+illegible one.
 
 ## Why not just use a WebView
 
