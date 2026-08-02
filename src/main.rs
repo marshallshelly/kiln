@@ -249,7 +249,9 @@ impl App {
 
         let entry = watch.entry.clone();
         let input = entry.to_string_lossy().into_owned();
-        match load(&input) {
+        // Ask the old runtime what to keep before replacing it.
+        let carried = self.script.hot_data();
+        match load_carrying(&input, carried) {
             Ok((dom, script, native)) => {
                 dom.set_viewport(self.size.0, self.size.1, self.scale);
                 self.dom = dom;
@@ -394,6 +396,15 @@ impl ApplicationHandler for App {
 }
 
 fn load(input: &str) -> Result<(Dom, Script, std::rc::Rc<native::Native>)> {
+    load_carrying(input, None)
+}
+
+/// `hot` is state a previous runtime handed over, restored before any page
+/// script runs so the page sees it on its first line rather than later.
+fn load_carrying(
+    input: &str,
+    hot: Option<String>,
+) -> Result<(Dom, Script, std::rc::Rc<native::Native>)> {
     let path = std::path::Path::new(input);
     let html = std::fs::read_to_string(path).with_context(|| format!("read {input}"))?;
     let base = path.parent().unwrap_or_else(|| std::path::Path::new("."));
@@ -402,6 +413,10 @@ fn load(input: &str) -> Result<(Dom, Script, std::rc::Rc<native::Native>)> {
     let native = std::rc::Rc::new(native::Native::default());
     let script =
         Script::new(dom.clone(), std::rc::Rc::clone(&native)).context("start script runtime")?;
+
+    if let Some(data) = hot {
+        script.set_hot_data(&data)?;
+    }
 
     dom.resolve();
 
@@ -1475,6 +1490,73 @@ mod snapshot_tests {
             "a module is deferred until after the classic scripts"
         );
         let _ = std::fs::remove_file(&page);
+    }
+
+    #[test]
+    fn a_page_can_carry_state_across_a_rebuild() {
+        // A JS edit rebuilds the runtime, because QuickJS has no way to evict a
+        // module. State crosses that gap only if the page writes it down, so
+        // this asserts the handover, not that the runtime survived.
+        let dir = std::env::temp_dir().join("kiln-hot-data");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let entry = dir.join("index.html");
+        std::fs::write(
+            &entry,
+            "<html><body><ul id=\"o\"></ul><script>\
+               var count = (kiln.hot.data.count || 0) + 1;\
+               kiln.hot.dispose(function (data) { data.count = count; });\
+               var li = document.createElement(\"li\");\
+               li.textContent = \"count \" + count;\
+               document.getElementById(\"o\").appendChild(li);\
+             </script></body></html>",
+        )
+        .unwrap();
+
+        let reported = |dom: &Dom| {
+            dom.snapshot()
+                .lines()
+                .filter_map(|line| line.split_once("\"count "))
+                .filter_map(|(_, rest)| rest.strip_suffix('"').map(str::to_string))
+                .next()
+                .unwrap()
+        };
+
+        let (dom, script, _native) = load(entry.to_str().unwrap()).unwrap();
+        dom.settle(&script);
+        assert_eq!(reported(&dom), "1", "a cold start sees an empty hot.data");
+
+        // Rebuild exactly as poll_reload does.
+        let carried = script.hot_data();
+        assert!(carried.is_some(), "the disposer ran before teardown");
+        let (dom, script, _native) = load_carrying(entry.to_str().unwrap(), carried).unwrap();
+        dom.settle(&script);
+        assert_eq!(reported(&dom), "2", "the count survived the rebuild");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_page_that_opts_out_carries_nothing() {
+        // No disposer means no round-trip, so a page that never asked for this
+        // behaves exactly as it did before the feature existed.
+        let dir = std::env::temp_dir().join("kiln-hot-none");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let entry = dir.join("index.html");
+        std::fs::write(
+            &entry,
+            "<html><body><script>var x = 1;</script></body></html>",
+        )
+        .unwrap();
+
+        let (dom, script, _native) = load(entry.to_str().unwrap()).unwrap();
+        dom.settle(&script);
+        assert_eq!(script.hot_data(), None);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

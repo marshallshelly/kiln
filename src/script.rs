@@ -150,6 +150,16 @@ class URL {
 globalThis.URL = URL;
 globalThis.URLSearchParams = URLSearchParams;
 
+const __hotDisposers = [];
+
+globalThis.__collectHotData = () => {
+  const data = {};
+  for (const fn of __hotDisposers) {
+    try { fn(data); } catch (error) { console.error(error); }
+  }
+  try { return JSON.stringify(data); } catch (_) { return "{}"; }
+};
+
 const __listeners = new Map();
 const __nodes = new Map();
 const __styles = new Map();
@@ -976,6 +986,16 @@ globalThis.kiln = {
     message(title, body) { __kiln.messageBox(String(title || ""), String(body || "")); },
   },
   notify(title, body) { return __kiln.notify(String(title || ""), String(body || "")); },
+  hot: {
+    // Whatever the previous runtime handed over. Empty on a cold start, so a
+    // page reads it the same way either way.
+    data: {},
+    // Called just before this runtime is torn down, with the object that will
+    // become `data` next time. A JS edit rebuilds the runtime -- QuickJS has no
+    // way to evict a module -- so state crosses the gap by being written down
+    // rather than by surviving.
+    dispose(fn) { if (typeof fn === "function") __hotDisposers.push(fn); },
+  },
   update: {
     // Returns the offered version, or null when there is nothing newer. The
     // app decides how to present it; Kiln does not draw update UI.
@@ -1542,6 +1562,39 @@ impl Script {
             .context("evaluate module");
         self.drain();
         result
+    }
+
+    /// State the page asked to carry across a rebuild, as JSON.
+    ///
+    /// Called while the old runtime is still alive. Returns `None` when nothing
+    /// registered a disposer, so a reload with no opt-in stays exactly as it
+    /// was rather than paying for a round-trip.
+    pub fn hot_data(&self) -> Option<String> {
+        let json = self
+            .context
+            .with(|ctx| -> rquickjs::Result<String> {
+                let collect: Function = ctx.globals().get("__collectHotData")?;
+                collect.call(())
+            })
+            .ok()?;
+        (json != "{}").then_some(json)
+    }
+
+    /// Hand that state to a fresh runtime, before any page script runs.
+    pub fn set_hot_data(&self, json: &str) -> Result<()> {
+        self.context
+            .with(|ctx| -> rquickjs::Result<()> {
+                let parse: Function = ctx
+                    .globals()
+                    .get::<_, Object>("JSON")
+                    .and_then(|json| json.get("parse"))?;
+                let value: rquickjs::Value = parse.call((json.to_string(),))?;
+                ctx.globals()
+                    .get::<_, Object>("kiln")
+                    .and_then(|kiln| kiln.get::<_, Object>("hot"))?
+                    .set("data", value)
+            })
+            .map_err(|error| anyhow!("restore hot data: {error}"))
     }
 
     pub fn eval(&self, source: &str) -> Result<()> {

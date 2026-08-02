@@ -10,7 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/marshallshelly/kiln?style=flat-square&color=0B1226&label=stars" alt="Stars">
-  <img src="https://img.shields.io/badge/status-M0--M10--F5A93C?style=flat-square" alt="Status: M0 to M10">
+  <img src="https://img.shields.io/badge/status-M0--M10-F5A93C?style=flat-square" alt="Status: M0 to M10">
   <img src="https://github.com/marshallshelly/kiln/actions/workflows/ci.yml/badge.svg" alt="CI">
   <img src="https://img.shields.io/badge/built%20with-Rust-0B1226?style=flat-square" alt="Built with Rust">
   <img src="https://img.shields.io/badge/license-Apache--2.0-0B1226?style=flat-square" alt="Apache-2.0 license">
@@ -18,7 +18,7 @@
 
 <p align="center">
   <strong>Native desktop apps from real HTML, CSS, and TypeScript &middot; rendered by our own engine &middot; no Chromium, no WebView</strong><br>
-  <sub><strong>This is early.</strong> HTML and CSS render, and JavaScript can drive the DOM — a counter app works. The CSS surface is partial and parts of the toolkit (packaging, signing, updates) are not built. Read <a href="#status">Status</a> before you get excited.</sub>
+  <sub><strong>This is early.</strong> An unmodified Vite React build renders, responds to clicks and hot-swaps its CSS. The CSS surface is partial, code signing is unverified, and runtime self-update is out of scope. Read <a href="#status">Status</a> before you get excited.</sub>
 </p>
 
 ---
@@ -46,13 +46,13 @@ Honesty is the product, so here is the unflattering version.
 | **M4** | ✅ | transitions, `@keyframes`, custom properties, `@media` — driven by a real animation clock |
 | **M5** | ✅ | scrolling, focus, keyboard nav, text input — IME wired but unverified |
 | **M6** | ✅ | accessibility tree, native menus, tray, clipboard, dialogs, notifications |
-| **M7** | ✅ | `init`, `dev` with reload on save, `check`, `build`, DevTools over CDP |
+| **M7** | ✅ | `init`, `dev` with CSS hot-swap and reload on save, `check`, `build`, DevTools over CDP |
 | **M8** | ✅ | **Preact runs unmodified. Tailwind works.** |
-| M9 | ◐ | `.app` and `.dmg` work on macOS; signing and notarization untested; `.msi`/`.deb` and the updater to do |
-| **M10** | ✅ | automation over CDP, record/replay as a determinism oracle |
-| M11 | next | static TypeScript compilation tier |
+| **M9** | ◐ | `.app`/`.dmg`, `.deb` and `.msi` all build and install; signing and notarization are implemented but **unverified** — they need a Developer ID |
+| **M10** | ✅ | automation over CDP including screenshots, record/replay as a determinism oracle |
+| **M11** | — | static TypeScript tier — **not started, and probably won't be.** PLAN.md says cut it without hesitation unless it earns its place, and nothing so far suggests it does |
 
-M3 is when this becomes demonstrable. M8 is when you could port something real.
+M3 is when this becomes demonstrable. M8 is when you could port something real. **ES modules landed after M10**, which is when an off-the-shelf Vite build started working.
 
 **No benchmarks are published yet, deliberately.** Targets exist — a binary in the tens of megabytes rather than hundreds, startup in milliseconds, idle memory in tens of megabytes — but nothing has been measured on a real application, so nothing gets printed here as though it had been. When the numbers land they'll ship with a reproducible benchmark in this repo.
 
@@ -112,17 +112,23 @@ The important part is not the list, it's the mechanic: **a property Kiln can't h
 $ kiln check examples/unsupported.css
 
   examples/unsupported.css
-    declarations         14
-    supported             4  (29%)
+    declarations         16
+    supported             5  (31%)
 
     ×1   .card:has(> .selected)             KC1002  not supported — restructure or use a class
-         examples/unsupported.css:30:1
-    ×1   float: left                        KC1101  use flexbox or grid
+         examples/unsupported.css:35:1
+    ×1   sidebar                            KC1101  use flexbox or grid
+         float: left
          examples/unsupported.css:5:3
-    ×1   position: sticky                   KC1201  use a fixed header plus scroll padding
+    ×1   legacy                             KC1102  use flexbox or grid
+         display: table-cell
+         examples/unsupported.css:31:3
+    ×1   legacy                             KC1150  not supported
+         writing-mode: vertical-rl
+         examples/unsupported.css:32:3
+    ×1   toolbar                            KC1201  use a fixed header plus scroll padding
+         position: sticky
          examples/unsupported.css:10:3
-    ×1   backdrop-filter: blur(12px)        KC1340  filter: blur() on a sibling layer
-         examples/unsupported.css:15:3
 ```
 
 It runs over `.css` files and the `<style>` blocks inside `.html`, and it is tested in both directions: [`tests/golden/check.txt`](tests/golden/check.txt) pins that report, and another test asserts every committed example stays inside the subset.
@@ -141,7 +147,18 @@ $ kiln build  my-app/index.html dist # bundle the app and its scripts
 $ kiln render my-app/index.html out.png --click "#inc"   # headless
 ```
 
-`kiln dev` watches the entry and every script it references. Reload rebuilds the document while keeping the window — it is a fast reload, not state-preserving hot module replacement, and that distinction is deliberate rather than aspirational.
+`kiln dev` watches the entry, every script it references, every module those import, and every linked stylesheet.
+
+**A CSS edit swaps the stylesheet under the running app.** Nothing is torn down, so every scrap of application state survives by construction rather than by being saved and restored.
+
+A JS edit rebuilds the runtime, and that is a limit rather than a choice: QuickJS caches modules and rquickjs exposes no way to evict one, so a module cannot be replaced in a live context. State crosses that gap only if the page writes it down:
+
+```js
+let count = kiln.hot.data.count ?? 0;
+kiln.hot.dispose((data) => { data.count = count; });
+```
+
+`dispose` runs while the old runtime is still alive; `data` is what the next one receives. A page that never calls `dispose` pays nothing and behaves exactly as it did before the API existed.
 
 ### DevTools attaches over CDP
 
@@ -208,6 +225,27 @@ Getting there needed three specific things, each worth knowing if you're porting
 - **Stable node identity.** Preact compares DOM nodes with `===`, so JavaScript wrappers are cached per node id rather than created per call.
 - **`onclick` must exist as a property.** Preact lowercases an event name only if `"onclick" in element`; otherwise it registers the type as `"Click"` and nothing ever matches. Handlers are also called with `this` bound to the node, which its event proxy relies on.
 - **The microtask queue has to be drained.** Preact schedules re-renders on a promise. Without draining QuickJS's job queue after every script evaluation and event dispatch, state updates run and the screen never changes.
+
+## A real Vite build runs
+
+`pnpm create vite --template react-ts`, `vite build --base ./`, and Kiln renders the output — React mounts, assets load, and clicking the counter updates it. No shims, no IIFE bundling, no patched fork.
+
+```console
+$ kiln render dist/index.html out.png --click "button.counter"
+```
+
+`<script type="module">` runs inline or from `src`, `import "./thing.js"` resolves off disk, and a resolved path must still sit inside the app directory — so `import "../../../etc/passwd"` fails to resolve rather than reading the file.
+
+Two things had to be fixed to get there, and both were invisible until a real bundle was run:
+
+- **`import.meta.url` was undefined.** QuickJS creates the object but leaves it empty for the host to fill. Bundlers address their assets with `new URL("./thing.png", import.meta.url)`, so with no base every asset resolved against the entry's directory and every image 404'd.
+- **QuickJS has no `URL`.** A Vite bundle dies on its first line with `URL is not defined`, so this was the difference between "bundler output runs" and "does not". `URL` and `URLSearchParams` are now in the prelude — enough of RFC 3986 for real bundles, deliberately not WHATWG.
+
+Every line of [`examples/url.html`](examples/url.html) was diffed against Chrome, which caught `href` dropping the `user:password@` credentials a browser keeps. Fifteen cases, one wrong — about the rate to expect from writing a URL parser out of memory, and why the golden holds the whole table.
+
+`--base ./` matters: Vite defaults to `/assets/…`, and a root-absolute path under `file:` resolves against the filesystem root.
+
+Script ordering follows the spec too — classic scripts run where the parser meets them, modules and `<script defer src>` run after parsing, and `defer` on an *inline* script is correctly ignored.
 
 ## Tailwind works
 
@@ -287,7 +325,11 @@ Taffy has no `fixed`, so `stylo_taffy` maps it to `absolute`. The cascade still 
 | inside `position: relative` | wrong offset, the ancestor's origin is added |
 | `inset: 0` inside one | wrong offset *and* wrong size — stretches to the ancestor, not the viewport |
 
-This one cannot be fixed from Kiln's side. The correct fix is to hoist fixed nodes to be layout children of the root before paint order is derived from the layout tree — a step inside Blitz's `resolve`, which cannot be reassembled externally because three of the fields it touches are crate-private. Reimplementing that pipeline to sneak a step in would mean owning a copy of an engine this project deliberately does not write, so it stays a documented gap with a golden that flips the day the upstream fix lands.
+This one cannot be fixed from Kiln's side, so it went upstream as [blitz#549](https://github.com/DioxusLabs/blitz/pull/549) — and the review was more useful than a merge would have been. The maintainers wanted one principled positioning pass rather than a targeted hoist, and chasing that turned up a **larger bug the PR had not noticed**: `position: absolute` is wrong too, whenever the element is not a direct child of its positioned ancestor.
+
+[`examples/absolute.html`](examples/absolute.html) puts both cases side by side. A mark that is a direct child lands at `12,12`, matching Chrome; the same mark one unpositioned `<div>` deeper lands at `72,77` where Chrome puts it at `12,12`. The cause is in Taffy, which lays absolute children out against their *direct parent* and never walks up to find a positioned ancestor — filed as [taffy#1008](https://github.com/DioxusLabs/taffy/issues/1008).
+
+`kiln check` reports both (KC1202, KC1203) rather than letting them be silent. KC1203 is the first rule that reads the *document* instead of the stylesheet, because whether an element is affected is a fact about the tree — and a blanket rule was measured first and rejected: `absolute` appears in three examples and two of them render correctly.
 
 `IntersectionObserver` needed no engine work at all — it is a hundred lines of prelude over the rect and viewport calls that already existed, running on the same layout pass as `ResizeObserver`. `root`, `rootMargin` in px and %, and `threshold` arrays all behave:
 
@@ -297,7 +339,7 @@ This one cannot be fixed from Kiln's side. The correct fix is to hoist fixed nod
 | 50px past the bottom edge | `false`, ratio `0.00` |
 | same target, `rootMargin: "100px"` | `true`, ratio `0.50` |
 
-The honest limit: until scrolling lands, the answer can only ever be the initial static one. That is still what lazy-loading and reveal-on-view libraries ask for, and it is a real measurement rather than a stub returning zero.
+It reports the answer at the time the layout pass runs, so re-observing after a scroll gives a different result.
 
 ## Non-Latin text
 
@@ -359,6 +401,8 @@ Nothing in that page polls. The input's `input` listener wrote the echo line, th
 
 Wheel events go through Blitz's `EventDriver` like every other input, so scroll clamping and bubbling to the parent — then the viewport — come from the engine. Kiln's part is forwarding winit's wheel and IME events, which it previously did not, and calling `scroll_by`, since Blitz treats scrolling as the shell's job rather than the DOM's.
 
+`scrollTop` and `scrollLeft` used to have **no-op setters** — `el.scrollTop = 0` did nothing, and the getter read back the old value so the write looked like it had worked. That is the same silent no-op the CSS subset has `kiln check` to prevent, sitting where `check` cannot see it. Real setters now exist, plus `scrollTo`, `scrollBy` and `scrollIntoView`, and a scripted scroll fires one coalesced `scroll` event the way a browser does. All six cases were diffed against Chrome; `scrollIntoView` was off by one until it aligned to the padding box rather than the border box.
+
 ## Native where it should be native
 
 Menus, the tray, the clipboard, file dialogs and notifications are real OS objects, not drawn by Kiln. JavaScript sees one `kiln.*` global:
@@ -409,7 +453,9 @@ window
   text-run value="Subscribe"
 ```
 
-This is also how the gap gets measured rather than assumed. Blitz's role mapping is currently thin — 21 nodes in that example come back `unknown`, including `<a>`, `<nav>`, `<main>`, `<ul>`, `<li>`, `<table>` and `<label>`. A screen reader gets nothing useful for navigation or lists. [`tests/golden/semantics.a11y.txt`](tests/golden/semantics.a11y.txt) records exactly that, so it improves visibly rather than silently.
+This is also how the gap gets measured rather than assumed. Blitz's role mapping was thin — 21 nodes in that example came back `unknown`, including `<a>`, `<nav>`, `<main>`, `<ul>`, `<li>`, `<table>` and `<label>`, so a screen reader got nothing useful for navigation or lists.
+
+That is fixed upstream: [blitz#550](https://github.com/DioxusLabs/blitz/pull/550) adds the HTML-AAM mappings and **merged the day it was sent**. Kiln pins a published Blitz, so [`tests/golden/semantics.a11y.txt`](tests/golden/semantics.a11y.txt) still records all 21 `unknown` roles — and that diff, on the next release, is the proof the fix is real rather than a link to a merged PR.
 
 Accessibility being a golden rather than a promise is the point. PLAN.md rates it a High risk precisely because it is usually an afterthought.
 
@@ -464,7 +510,7 @@ cargo test
 | `MutationObserver` | works — subtree scoping, `attributeFilter`, old values, `takeRecords`, `disconnect` |
 | Goldens | `examples/observers.html` writes observer results back into the DOM, so the text snapshot records them |
 | Restyle invalidation | the same records are the dirty-set the cascade wants |
-| HMR, DevTools, record/replay | later readers of the same stream |
+| DevTools, record/replay | further readers of the same stream |
 
 Parent and siblings are captured *before* each edit, because after a removal there is no walking up from an orphaned handle. And `document.mutate()` is allowed in exactly one file — a test fails the build otherwise, since one missed append would break every reader at once, silently.
 
@@ -482,7 +528,29 @@ $ kiln package app/index.html --name "My App" --dmg
 
 The bundle carries the Kiln runtime, your page renamed to `index.html`, and every local file it references with paths intact — so a `<link>` that worked in development still resolves inside the bundle. Double-clicking it opens your app; the runtime locates its own page relative to the executable.
 
-`--sign` and `--notarize` shell out to Apple's own `codesign` and `notarytool`. Both are implemented and **neither has been run end to end here**, because that needs a Developer ID certificate. `.msi` and `.deb` are not started.
+`--dmg`, `--deb` and `--msi` opt into an installer for the platform you're on. Each is a known directory layout plus one system tool, so there's no bundler dependency. CI builds all three on their own platforms and **installs the `.deb` with `dpkg -i`** before running the installed binary, because `dpkg-deb --contents` would not catch a broken symlink.
+
+Two empty installers once shipped green, which is why every artifact is now size-asserted rather than existence-checked: a `.msi` built from relative `File Source` paths was 5,942 bytes, and one with an external cabinet was 32,768 bytes with a 10.6 MB `.cab` sitting beside it. Both *succeeded*.
+
+`--sign` and `--notarize` shell out to Apple's own `codesign` and `notarytool`. Both are implemented and **neither has been run end to end here**, because that needs a Developer ID certificate.
+
+### Updating a shipped app
+
+```console
+$ kiln package app/index.html --update-url https://example.com/feed.json \
+                              --update-key RWQf6LRC…
+```
+
+An app can replace **its own `app/` directory** — not the runtime binary. That split is what makes it cheap: no binary to overwrite, no re-signing, no notarization to invalidate, and none of the platform grief of replacing a running executable. Runtime self-update is deliberately out of scope.
+
+```js
+const version = kiln.update.check();      // null when nothing is newer
+if (version && confirm(`Install ${version}?`)) kiln.update.apply();
+```
+
+Kiln draws no update UI; the app decides. Bundles are signed with [minisign](https://jedisct1.github.io/minisign/) and verified before anything is written — TLS says which host answered, not whose bytes arrived. The public key lives *beside* `app/` rather than inside it, because a key in the replaceable tree would let one compromised release authorise every release after it. Downgrades are refused, and the install is two renames so a crash leaves one whole tree or the other.
+
+**This is the only place Kiln touches the network**, and only when an app was packaged with an update URL.
 
 ## Building
 
@@ -496,8 +564,10 @@ $ cargo test
 $ cargo clippy --all-targets --all-features --locked -- -D warnings
 ```
 
-CI builds and tests on macOS, Linux and Windows, and packages a `.dmg` on
-macOS. No test paints, so none of them needs a GPU or a display.
+CI builds and tests on macOS, Linux and Windows, and builds an installer on
+each. Exactly one test paints — the CDP screenshot — and it is skipped on
+Windows, whose runners have no GPU adapter and where wgpu aborts the process
+rather than returning an error. Everything else is GPU-free by design.
 
 Tree snapshots record box sizes and therefore only *compare* on macOS, where
 they were blessed — but they still run everywhere. The CSS report, the
