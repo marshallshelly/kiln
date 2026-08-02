@@ -1213,6 +1213,10 @@ mod snapshot_tests {
     }
 
     #[test]
+    // The only test that paints, so the only one needing a GPU. Windows CI
+    // runners have no usable adapter and wgpu aborts the process rather than
+    // returning an error, which cannot be caught and skipped at runtime.
+    #[cfg_attr(windows, ignore = "no GPU adapter on Windows CI")]
     fn devtools_captures_a_screenshot() {
         use base64::Engine as _;
         use serde_json::json;
