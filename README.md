@@ -49,7 +49,7 @@ Honesty is the product, so here is the unflattering version.
 | **M6** | ✅ | accessibility tree, native menus, tray, clipboard, dialogs, notifications |
 | **M7** | ✅ | `init`, `dev` with CSS hot-swap and reload on save, `check`, `build`, DevTools over CDP |
 | **M8** | ✅ | **Preact runs unmodified. Tailwind works.** |
-| **M9** | ◐ | `.app`/`.dmg`, `.deb` and `.msi` all build and install; signing and notarization are implemented but **unverified** — they need a Developer ID |
+| **M9** | ◐ | `.app`/`.dmg`, `.deb` and `.msi` all build and install; the updater replaces an app's assets but not its runtime binary; signing and notarization are implemented but **unverified** — they need a Developer ID |
 | **M10** | ✅ | automation over CDP including screenshots, record/replay as a determinism oracle |
 
 M3 is when this becomes demonstrable. M8 is when you could port something real. **ES modules landed after M10**, which is when an off-the-shelf Vite build started working.
