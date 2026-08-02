@@ -55,7 +55,35 @@ Honesty is the product, so here is the unflattering version.
 
 M3 is when this becomes demonstrable. M8 is when you could port something real. **ES modules landed after M10**, which is when an off-the-shelf Vite build started working.
 
-**No benchmarks are published yet, deliberately.** Targets exist — a binary in the tens of megabytes rather than hundreds, startup in milliseconds, idle memory in tens of megabytes — but nothing has been measured on a real application, so nothing gets printed here as though it had been. When the numbers land they'll ship with a reproducible benchmark in this repo.
+### The numbers
+
+Measured rather than estimated, with [`bench/run.sh`](bench/run.sh) in this repo. Apple M3 Pro, macOS, release build.
+
+```
+  binary, as built                   32.9 MB
+  binary, stripped                   26.9 MB
+  peak RSS, check (no GPU)           26.6 MB
+  peak RSS, headless render          56.0 MB
+  headless render, best of 5          114 ms
+  window, first paint (warm)        175.1 ms
+  window, idle RSS                  117.2 MB
+```
+
+**Two of the three targets are missed, and by a lot.** PLAN.md said this approach should mean "the binary is 20 MB instead of 200, boots in 15 ms instead of 900, and idles at 30 MB of RSS instead of 400."
+
+| | target | actual | |
+|---|---|---|---|
+| binary | 20 MB | 26.9 MB stripped | close |
+| first paint | 15 ms | 175 ms | **12× over** |
+| idle RSS | 30 MB | 117 MB | **4× over** |
+
+The size target is roughly met, and the trajectory is documented: 25.1 MB before Thai line breaking, 28.8 MB after, 30.0 MB after the native surfaces, 32.9 MB now. Every increase was a named feature.
+
+The other two are the GPU stack, and the split says so. `kiln check` parses, cascades and lays out with no renderer at all: **26.6 MB**. Adding wgpu and Vello for a headless render takes it to **56.0 MB**. A real window with a swapchain reaches **117 MB**. So roughly a quarter of resident memory is the engine this project actually writes, and the rest is the renderer it assembles.
+
+**And the first launch is far worse than the steady state** — 1.1 to 1.6 seconds against 175 ms warm. Something warms up system-wide on first run; it is not the binary's page cache, since a freshly copied binary is slow once and then fast. That is unattributed, and saying so is more useful than guessing.
+
+None of this is compared against Electron or Tauri, because nothing here runs them. Treat it as a floor to improve on and a regression check, not as a competitive claim.
 
 ## Why not just use a WebView
 

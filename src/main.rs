@@ -153,6 +153,10 @@ struct App {
     watch: Option<Watch>,
     devtools: Option<devtools::Devtools>,
     failure: Option<anyhow::Error>,
+    /// Set by KILN_TIMING, cleared after the first frame. Measuring startup
+    /// needs a mark inside the loop; taking it from outside would time the
+    /// shell rather than the app.
+    report_first_paint: bool,
 }
 
 impl App {
@@ -170,6 +174,7 @@ impl App {
             watch: None,
             devtools: None,
             failure: None,
+            report_first_paint: std::env::var_os("KILN_TIMING").is_some(),
         }
     }
 
@@ -300,6 +305,15 @@ impl App {
         let (width, height) = *size;
         let scale = f64::from(*scale);
         renderer.render(|scene| dom.paint(scene, scale, width, height));
+
+        if self.report_first_paint {
+            self.report_first_paint = false;
+            let elapsed = PROCESS_START
+                .get()
+                .map(|start| start.elapsed().as_secs_f64() * 1000.0)
+                .unwrap_or_default();
+            println!("kiln: first paint at {elapsed:.1} ms");
+        }
 
         if animating && let Some(window) = self.window.as_ref() {
             window.request_redraw();
@@ -938,7 +952,13 @@ fn usage() -> ! {
     std::process::exit(2)
 }
 
+/// Marked at the top of `main`, so a startup measurement includes reading and
+/// parsing the page and running its scripts. Timing from the event loop would
+/// leave all of that out and report a flattering number for the wrong thing.
+static PROCESS_START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+
 fn main() -> Result<()> {
+    let _ = PROCESS_START.set(std::time::Instant::now());
     let args: Vec<String> = std::env::args().skip(1).collect();
 
     match args.first().map(String::as_str) {
