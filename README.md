@@ -10,7 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/marshallshelly/kiln?style=flat-square&color=0B1226&label=stars" alt="Stars">
-  <img src="https://img.shields.io/badge/status-M0--M10-F5A93C?style=flat-square" alt="Status: M0 to M10">
+  <img src="https://img.shields.io/badge/status-early-F5A93C?style=flat-square" alt="Status: early">
   <img src="https://github.com/marshallshelly/kiln/actions/workflows/ci.yml/badge.svg" alt="CI">
   <img src="https://img.shields.io/badge/built%20with-Rust-0B1226?style=flat-square" alt="Built with Rust">
   <img src="https://img.shields.io/badge/license-Apache--2.0-0B1226?style=flat-square" alt="Apache-2.0 license">
@@ -38,21 +38,19 @@ Your HTML gets parsed by a real HTML parser. Your CSS is resolved by Firefox's c
 
 Honesty is the product, so here is the unflattering version.
 
-| Milestone | | |
-|---|---|---|
-| **M0** | ✅ | winit window + wgpu, one rounded rectangle from a hardcoded struct |
-| **M1** | ✅ | HTML + CSS renders — cascade, flexbox, gradients, text — in a window and headless |
-| **M2** | ✅ | Parley text: ligatures, RTL, Devanagari, CJK, Thai line breaking, bidi, colour emoji |
-| **M3** | ✅ | QuickJS + DOM bridge + events — **a counter app works**; hover, checkbox, details and focus come from the engine |
-| **M4** | ✅ | transitions, `@keyframes`, custom properties, `@media` — driven by a real animation clock |
-| **M5** | ✅ | scrolling, focus, keyboard nav, text input — IME wired but unverified |
-| **M6** | ✅ | accessibility tree, native menus, tray, clipboard, dialogs, notifications |
-| **M7** | ✅ | `init`, `dev` with CSS hot-swap and reload on save, `check`, `build`, DevTools over CDP |
-| **M8** | ✅ | **Preact runs unmodified. Tailwind works.** |
-| **M9** | ◐ | installers for all three platforms build and install, and a shipped app can update its own assets. **`--sign` and `--notarize` have never been run with a real certificate** — if you sign a macOS build, you are the first |
-| **M10** | ✅ | automation over CDP including screenshots, record/replay as a determinism oracle |
+**What works.** An unmodified Vite React build renders and responds to clicks. Preact and Tailwind run as shipped. Text covers Arabic and Hebrew RTL, Devanagari conjuncts, Thai line breaking, CJK and colour emoji. Scrolling, typing, focus, CSS animation, native menus and a real accessibility tree all work. `kiln dev` hot-swaps CSS without losing app state, DevTools attaches over CDP, and `kiln package` builds an installer on macOS, Linux and Windows.
 
-M3 is when this becomes demonstrable. M8 is when you could port something real. **ES modules landed after M10**, which is when an off-the-shelf Vite build started working.
+**What doesn't, and what it costs you:**
+
+| | |
+|---|---|
+| CSS coverage | partial — `float`, tables, `position: sticky`, `:has()`, `@container` and subgrid are out. [`kiln check`](#the-subset) names every gap rather than failing silently |
+| `position: fixed`, nested `position: absolute` | resolve against the wrong box. Both are upstream bugs, both are [reported by `kiln check`](#position-fixed-is-honest-about-being-wrong) |
+| `text-overflow: ellipsis` | clips without drawing the ellipsis — needs truncation support in Parley first |
+| Code signing | `--sign` and `--notarize` are written but **have never been run with a real certificate**. If you sign a macOS build, you are the first |
+| IME | wired, never tested against a real input method |
+| Runtime self-update | out of scope — an app replaces its own assets, not its binary |
+| Memory and cold start | 117 MB idle, 175 ms to first paint. Both are well over target, and the numbers are below |
 
 ### The numbers
 
@@ -68,7 +66,7 @@ Measured rather than estimated, with [`bench/run.sh`](bench/run.sh) in this repo
   window, idle RSS                  117.2 MB
 ```
 
-**Two of the three targets are missed, and by a lot.** PLAN.md said this approach should mean "the binary is 20 MB instead of 200, boots in 15 ms instead of 900, and idles at 30 MB of RSS instead of 400."
+**Two of the three targets are missed, and by a lot.** The premise of not shipping a browser was a binary of 20 MB rather than 200, a boot of 15 ms rather than 900, and 30 MB of resident memory rather than 400.
 
 | | target | actual | |
 |---|---|---|---|
@@ -461,7 +459,7 @@ cargo run -- render examples/animation.html out.png --at 1.0
 
 That is a single deterministic frame one second into a two-second timeline. The bar is 270px through a 120→420 transition with its background interpolated between amber and mint; the second box has translated 160 of 320px and faded to 0.6 opacity; the third is at its `@keyframes` height peak.
 
-`tests/golden/animation.txt` is blessed at exactly that instant, so a frozen clock — which is what this was before M4, with `resolve()` hardcoded to time zero — fails the build instead of quietly rendering the first frame forever.
+`tests/golden/animation.txt` is blessed at exactly that instant, so a frozen clock — which is what this was until the clock existed, with `resolve()` hardcoded to time zero — fails the build instead of quietly rendering the first frame forever.
 
 ## Scrolling, focus and typing
 
@@ -535,7 +533,7 @@ This is also how the gap gets measured rather than assumed. Blitz's role mapping
 
 That is fixed upstream: [blitz#550](https://github.com/DioxusLabs/blitz/pull/550) adds the HTML-AAM mappings and **merged the day it was sent**. Kiln pins a published Blitz, so [`tests/golden/semantics.a11y.txt`](tests/golden/semantics.a11y.txt) still records all 21 `unknown` roles — and that diff, on the next release, is the proof the fix is real rather than a link to a merged PR.
 
-Accessibility being a golden rather than a promise is the point. PLAN.md rates it a High risk precisely because it is usually an afterthought.
+Accessibility being a golden rather than a promise is the point. It is usually an afterthought in a project like this, which is exactly why it is asserted here.
 
 ## Record and replay
 
