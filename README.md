@@ -51,7 +51,6 @@ Honesty is the product, so here is the unflattering version.
 | **M8** | ✅ | **Preact runs unmodified. Tailwind works.** |
 | **M9** | ◐ | `.app`/`.dmg`, `.deb` and `.msi` all build and install; signing and notarization are implemented but **unverified** — they need a Developer ID |
 | **M10** | ✅ | automation over CDP including screenshots, record/replay as a determinism oracle |
-| ~~M11~~ | ✂️ | static TypeScript tier — **cut.** It was meant to be the differentiator; the differentiators turned out to be `kiln check`, identical rendering, and an unmodified Vite build running. None needed a compiler |
 
 M3 is when this becomes demonstrable. M8 is when you could port something real. **ES modules landed after M10**, which is when an off-the-shelf Vite build started working.
 
