@@ -46,6 +46,7 @@ Honesty is the product, so here is the unflattering version.
 | CSS coverage | partial — `float`, tables, `position: sticky`, `:has()`, `@container` and subgrid are out. [`kiln check`](#the-subset) names every gap rather than failing silently |
 | `position: fixed`, nested `position: absolute` | resolve against the wrong box. Both are upstream bugs, both are [reported by `kiln check`](#position-fixed-is-honest-about-being-wrong) |
 | `text-overflow: ellipsis` | clips without drawing the ellipsis — needs truncation support in Parley first |
+| Symbol glyphs | font fallback misses parts of the symbol ranges — `▸ ▾ ✓ ⇒` come out as missing-glyph boxes while `▶ ▼ ★ → •` are fine. Naming a font that has them works; the fallback chain just doesn't reach it |
 | Code signing | `--sign` and `--notarize` are written but **have never been run with a real certificate**. If you sign a macOS build, you are the first |
 | IME | wired, never tested against a real input method |
 | Runtime self-update | out of scope — an app replaces its own assets, not its binary |
@@ -264,7 +265,7 @@ document.querySelector("#inc").addEventListener("click", () => {
 Input goes through Blitz's `EventDriver`, so the engine's built-in behaviour comes with it — `:hover`, checkbox and radio toggling, `<details>` disclosure, focus, and form submission all work without a line of application code:
 
 <p align="center">
-  <img src="assets/controls.png" width="620" alt="A hover-highlighted box, a checked checkbox and an opened details element">
+  <img src="assets/controls.png" width="620" alt="A hover-highlighted box, a checkbox, and a details element opened by a click on its summary">
 </p>
 
 JavaScript gets real event objects — `type`, `key`, `target`, `currentTarget`, `clientX/Y`, `preventDefault()`, `stopPropagation()` — and clicks bubble through ancestors, so a listener on a `<button>` fires when the hit lands on the text inside it.
@@ -418,6 +419,8 @@ Arabic and Hebrew lay out right-to-left with correct cursive joining. Devanagari
 Thai, Lao, Khmer and Burmese have no spaces between words, so they need dictionary segmentation to know where a line may break. Those dictionaries are compiled in, which costs 3.7 MB of the binary — worth stating, since it is a fifth of the download and the alternative is Thai text running out of its container.
 
 Still missing: **`text-overflow: ellipsis` clips without drawing the ellipsis.** It isn't implemented in Parley, so it needs truncation support upstream first.
+
+**Font fallback also has a hole in the symbol ranges.** `▸ ▾ ✓ ⇒` render as missing-glyph boxes where `▶ ▼ ★ → •` are fine — and the fonts that have them are installed, since naming Menlo or STIXGeneral explicitly renders all three. That is what puts the box on the `<details>` marker in the screenshot above: Blitz picks `▸` for `disclosure-closed` and the inside-marker path never asks for the bullet font it bundles for exactly this. Fixed upstream in [blitz#600](https://github.com/DioxusLabs/blitz/pull/600); the wider fallback gap is Parley's and is not filed yet.
 
 ## Animation
 
