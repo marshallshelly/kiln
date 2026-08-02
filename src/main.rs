@@ -339,7 +339,13 @@ fn load(input: &str) -> Result<(Dom, Script, std::rc::Rc<native::Native>)> {
 
     script.set_module_root(base);
 
-    for source in dom.scripts() {
+    // Classic scripts run where the parser meets them; module scripts are
+    // deferred until parsing is done, so they go in a second pass rather than
+    // in document order with the rest.
+    let (deferred, immediate): (Vec<_>, Vec<_>) =
+        dom.scripts().into_iter().partition(dom::Script::is_module);
+
+    for source in immediate.into_iter().chain(deferred) {
         match source {
             dom::Script::Inline {
                 code,
@@ -1290,6 +1296,45 @@ mod snapshot_tests {
         assert!(!watch.changed(&dom), "and only once");
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn modules_run_after_classic_scripts() {
+        // The module comes first in the document, so only a deferred module
+        // makes the classic script win. Ordering them the other way round would
+        // pass whatever the rule is.
+        let page = std::env::temp_dir().join("kiln-defer.html");
+        std::fs::write(
+            &page,
+            "<html><body><ul id=\"o\"></ul>\
+             <script type=\"module\">\
+               const li = document.createElement(\"li\"); li.textContent = \"module\";\
+               document.getElementById(\"o\").appendChild(li);\
+             </script>\
+             <script>\
+               var li = document.createElement(\"li\"); li.textContent = \"classic\";\
+               document.getElementById(\"o\").appendChild(li);\
+             </script>\
+             </body></html>",
+        )
+        .unwrap();
+
+        let (dom, script, _native) = load(page.to_str().unwrap()).unwrap();
+        dom.settle(&script);
+
+        let order = dom.snapshot();
+        let ran: Vec<&str> = order
+            .lines()
+            .filter_map(|line| line.split_once('"'))
+            .filter_map(|(_, rest)| rest.strip_suffix('"'))
+            .collect();
+
+        assert_eq!(
+            ran,
+            ["classic", "module"],
+            "a module is deferred until after the classic scripts"
+        );
+        let _ = std::fs::remove_file(&page);
     }
 
     #[test]

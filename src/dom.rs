@@ -12,6 +12,16 @@ pub enum Script {
     Src { src: String, module: bool },
 }
 
+impl Script {
+    /// A module script is deferred: a browser runs it after parsing, not where
+    /// the tag sits.
+    pub fn is_module(&self) -> bool {
+        match self {
+            Self::Inline { module, .. } | Self::Src { module, .. } => *module,
+        }
+    }
+}
+
 /// Resolves `file:` sub-resources — the stylesheets and images a real page
 /// links to — off disk. Kiln is not a browser and deliberately fetches nothing
 /// over the network; any other scheme is dropped.
