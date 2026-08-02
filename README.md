@@ -312,12 +312,7 @@ $ kiln render dist/index.html out.png --click "button.counter"
 
 `<script type="module">` runs inline or from `src`, `import "./thing.js"` resolves off disk, and a resolved path must still sit inside the app directory — so `import "../../../etc/passwd"` fails to resolve rather than reading the file.
 
-Two things had to be fixed to get there, and both were invisible until a real bundle was run:
-
-- **`import.meta.url` was undefined.** QuickJS creates the object but leaves it empty for the host to fill. Bundlers address their assets with `new URL("./thing.png", import.meta.url)`, so with no base every asset resolved against the entry's directory and every image 404'd.
-- **QuickJS has no `URL`.** A Vite bundle dies on its first line with `URL is not defined`, so this was the difference between "bundler output runs" and "does not". `URL` and `URLSearchParams` are now in the prelude — enough of RFC 3986 for real bundles, deliberately not WHATWG.
-
-Every line of [`examples/url.html`](examples/url.html) was diffed against Chrome, which caught `href` dropping the `user:password@` credentials a browser keeps. Fifteen cases, one wrong — about the rate to expect from writing a URL parser out of memory, and why the golden holds the whole table.
+Two things bundler output depends on are in the prelude: `import.meta.url`, which is how bundlers address their assets, and `URL`/`URLSearchParams`, which QuickJS does not ship. The URL implementation covers enough of RFC 3986 for real bundles and is deliberately not WHATWG — no IDNA, no percent-encoding normalisation. Every case in [`examples/url.html`](examples/url.html) is diffed against Chrome.
 
 `--base ./` matters: Vite defaults to `/assets/…`, and a root-absolute path under `file:` resolves against the filesystem root.
 
@@ -340,7 +335,7 @@ $ kiln check  examples/tailwind.html
 
 That is real generated CSS, vendored in [`examples/vendor/`](examples/vendor/) so the claim can be rebuilt.
 
-Getting there needed one fix worth naming: Kiln had never been handed a page with `<link rel="stylesheet">`, and **panicked** on one. Since Tailwind emits a `.css` file, the normal workflow was impossible. Pages now resolve local sub-resources against a `file:` base URL. Nothing is fetched over the network, and an attempt to says so out loud.
+`<link rel="stylesheet">` and other local sub-resources resolve against a `file:` base URL. Nothing is fetched over the network, and an attempt to reach it fails out loud rather than quietly.
 
 ### check speaks in utilities
 
@@ -362,12 +357,12 @@ Unstyled component primitives work too. [Base UI](https://base-ui.com) `1.0.0-rc
 cargo run -- render examples/baseui.html out.png
 ```
 
-Getting there needed real layout geometry rather than stubs:
+That needs real layout geometry rather than stubs, which is what a component library will exercise first:
 
-- **`getBoundingClientRect`, `offsetWidth`, `clientWidth`, `scrollWidth`, `scrollTop`** report actual values from the layout tree — border box, padding box, content size and scroll offset kept distinct rather than collapsed into one number.
-- **`ResizeObserver` is real.** It runs off the layout pass: after each relayout, observed elements whose content box changed get an entry. Layout re-runs until observers stop firing, bounded at four passes like a browser's resize-loop guard.
-- **Reading geometry forces a synchronous layout flush.** This is the one that mattered. Floating-element libraries measure inside a timer, before the next frame — without a flush every rect read back as `0x0` and popups positioned themselves at the origin.
-- **`getComputedStyle` returns resolved values.** Floating-ui reads it nine times in a bundled Base UI build: `getCssDimensions` parses `width`/`height`, `isContainingBlock` inspects `transform` and `willChange`, `getOffsetParent` walks the tree comparing `position`. Lengths come from the layout tree, keywords from the cascade.
+- **`getBoundingClientRect`, `offset*`, `client*`, `scroll*`** report actual values from the layout tree — border box, padding box, content size and scroll offset kept distinct rather than collapsed into one number.
+- **Reading geometry forces a synchronous layout flush**, because floating-element libraries measure inside a timer, before the next frame.
+- **`ResizeObserver`, `IntersectionObserver` and `MutationObserver` are real.** The first two run off the layout pass; layout re-runs until observers stop firing, bounded at four passes like a browser's resize-loop guard.
+- **`getComputedStyle` returns resolved values** — lengths from the layout tree, keywords from the cascade. Floating-ui reads it nine times in a bundled Base UI build.
 
 ### Collision detection and edge flipping work
 
@@ -385,8 +380,6 @@ Nothing in the page says where these should go. Floating-ui measures the trigger
 | `near bottom` at y=619 | `translate(40px, 495px)` | **flipped** — 619 − 118 − 6, above the trigger |
 | `near right` at x=930 | `translate(781px, 342px)` | **shifted left** to keep 214px on screen |
 
-Getting the last one honest took `clientLeft`/`clientTop`, which floating-ui adds to every offset — unimplemented, they made `number + undefined` and every popup landed at `translate(NaNpx, NaNpx)`.
-
 Those three transforms are pinned by [`tests/golden/baseui.txt`](tests/golden/baseui.txt), so a regression in positioning fails `cargo test` rather than quietly changing a screenshot.
 
 Still missing: `getBoundingClientRect` ignores transforms, so a positioned popup reports its untransformed box.
@@ -401,21 +394,11 @@ Taffy has no `fixed`, so `stylo_taffy` maps it to `absolute`. The cascade still 
 | inside `position: relative` | wrong offset, the ancestor's origin is added |
 | `inset: 0` inside one | wrong offset *and* wrong size — stretches to the ancestor, not the viewport |
 
-This one cannot be fixed from Kiln's side, so it went upstream as [blitz#549](https://github.com/DioxusLabs/blitz/pull/549) — and the review was more useful than a merge would have been. The maintainers wanted one principled positioning pass rather than a targeted hoist, and chasing that turned up a **larger bug the PR had not noticed**: `position: absolute` is wrong too, whenever the element is not a direct child of its positioned ancestor.
+**`position: absolute` has the same bug** whenever the element is not a direct child of its positioned ancestor. [`examples/absolute.html`](examples/absolute.html) puts both cases side by side: a mark that is a direct child lands at `12,12`, matching Chrome; the same mark one unpositioned `<div>` deeper lands at `72,77`. The cause is in Taffy, which lays absolute children out against their *direct parent* and never walks up.
 
-[`examples/absolute.html`](examples/absolute.html) puts both cases side by side. A mark that is a direct child lands at `12,12`, matching Chrome; the same mark one unpositioned `<div>` deeper lands at `72,77` where Chrome puts it at `12,12`. The cause is in Taffy, which lays absolute children out against their *direct parent* and never walks up to find a positioned ancestor — filed as [taffy#1008](https://github.com/DioxusLabs/taffy/issues/1008).
+Both are filed upstream — [blitz#549](https://github.com/DioxusLabs/blitz/pull/549) and [taffy#1008](https://github.com/DioxusLabs/taffy/issues/1008) — and until they land `kiln check` reports them (KC1202, KC1203) rather than letting them be silent. KC1203 reads the *document* rather than the stylesheet, because whether an element is affected is a fact about the tree: a blanket warning on `position: absolute` would be wrong more often than right.
 
-`kiln check` reports both (KC1202, KC1203) rather than letting them be silent. KC1203 is the first rule that reads the *document* instead of the stylesheet, because whether an element is affected is a fact about the tree — and a blanket rule was measured first and rejected: `absolute` appears in three examples and two of them render correctly.
-
-`IntersectionObserver` needed no engine work at all — it is a hundred lines of prelude over the rect and viewport calls that already existed, running on the same layout pass as `ResizeObserver`. `root`, `rootMargin` in px and %, and `threshold` arrays all behave:
-
-| Target | Result |
-| --- | --- |
-| fully on screen | `isIntersecting: true`, ratio `1.00` |
-| 50px past the bottom edge | `false`, ratio `0.00` |
-| same target, `rootMargin: "100px"` | `true`, ratio `0.50` |
-
-It reports the answer at the time the layout pass runs, so re-observing after a scroll gives a different result.
+This is the class of bug most likely to bite you, and it is worth knowing why it usually doesn't: Base UI and shadcn position with `transform` rather than `top`/`left`, which sidesteps the containing block entirely.
 
 ## Non-Latin text
 
@@ -433,15 +416,9 @@ cargo run -- render examples/text.html out.png
 
 Arabic and Hebrew lay out right-to-left with correct cursive joining. Devanagari forms conjuncts and reorders matras. A bidi run embeds Arabic inside an English sentence at the right position. Emoji render in colour, including ZWJ sequences like 👨‍👩‍👧‍👦 that are four codepoints joined into one glyph.
 
-One thing needed fixing, and the fix is the whole thesis in miniature. Thai, Lao, Khmer and Burmese have no spaces between words, so they need dictionary segmentation to know where a line may break — without it the text simply ran out of its container. Parley depends on `icu_segmenter` with default features off and calls `new_for_non_complex_scripts` unless told otherwise. The repair was one line:
+Thai, Lao, Khmer and Burmese have no spaces between words, so they need dictionary segmentation to know where a line may break. Those dictionaries are compiled in, which costs 3.7 MB of the binary — worth stating, since it is a fifth of the download and the alternative is Thai text running out of its container.
 
-```toml
-parley = { version = "0.10", features = ["complex-scripts"] }
-```
-
-That costs 3.7 MB of dictionary data — a release binary goes from 25.1 MB to 28.8 MB. Worth paying, and stated rather than buried.
-
-Still missing: **`text-overflow: ellipsis` clips without drawing the ellipsis.** It isn't implemented in Parley, so it isn't a flag — it needs truncation support upstream first.
+Still missing: **`text-overflow: ellipsis` clips without drawing the ellipsis.** It isn't implemented in Parley, so it needs truncation support upstream first.
 
 ## Animation
 
@@ -457,9 +434,7 @@ cargo run -- render examples/animation.html out.png --at 1.0
   <img src="assets/animation.png" width="720" alt="Three animations sampled one second in: a bar half-widened with its colour interpolated between amber and mint, a box translated halfway and faded, and a bar at its keyframe height peak.">
 </p>
 
-That is a single deterministic frame one second into a two-second timeline. The bar is 270px through a 120→420 transition with its background interpolated between amber and mint; the second box has translated 160 of 320px and faded to 0.6 opacity; the third is at its `@keyframes` height peak.
-
-`tests/golden/animation.txt` is blessed at exactly that instant, so a frozen clock — which is what this was until the clock existed, with `resolve()` hardcoded to time zero — fails the build instead of quietly rendering the first frame forever.
+That is a single deterministic frame one second into a two-second timeline. The bar is 270px through a 120→420 transition with its background interpolated between amber and mint; the second box has translated 160 of 320px and faded to 0.6 opacity; the third is at its `@keyframes` height peak. A golden is blessed at exactly that instant, so a stalled clock fails the build rather than quietly rendering the first frame forever.
 
 ## Scrolling, focus and typing
 
@@ -473,11 +448,9 @@ cargo run -- render examples/input.html out.png --type "Marshall" --scroll "#lis
   <img src="assets/input.png" width="720" alt="A focused text input containing the typed word Marshall with a visible caret and amber focus ring, above a scrolled list showing rows 2 through 5 with a scrollbar.">
 </p>
 
-Nothing in that page polls. The input's `input` listener wrote the echo line, the list's `scroll` listener wrote `scrollTop: 90`, and the `:focus` border came from the cascade. `tests/golden/input.txt` records both strings.
+Nothing in that page polls. The input's `input` listener wrote the echo line, the list's `scroll` listener wrote `scrollTop: 90`, and the `:focus` border came from the cascade.
 
-Wheel events go through Blitz's `EventDriver` like every other input, so scroll clamping and bubbling to the parent — then the viewport — come from the engine. Kiln's part is forwarding winit's wheel and IME events, which it previously did not, and calling `scroll_by`, since Blitz treats scrolling as the shell's job rather than the DOM's.
-
-`scrollTop` and `scrollLeft` used to have **no-op setters** — `el.scrollTop = 0` did nothing, and the getter read back the old value so the write looked like it had worked. That is the same silent no-op the CSS subset has `kiln check` to prevent, sitting where `check` cannot see it. Real setters now exist, plus `scrollTo`, `scrollBy` and `scrollIntoView`, and a scripted scroll fires one coalesced `scroll` event the way a browser does. All six cases were diffed against Chrome; `scrollIntoView` was off by one until it aligned to the padding box rather than the border box.
+Scrolling works from script as well as from the wheel: `scrollTop` and `scrollLeft` are writable, and `scrollTo`, `scrollBy` and `scrollIntoView` all take either positional arguments or an options object. A scripted scroll fires one coalesced `scroll` event, the way a browser does rather than one per call. Every case was diffed against Chrome and matches, apart from scrollbar reservation — Chrome reserves width in `clientHeight` where Kiln does not.
 
 ## Native where it should be native
 
@@ -529,9 +502,7 @@ window
   text-run value="Subscribe"
 ```
 
-This is also how the gap gets measured rather than assumed. Blitz's role mapping was thin — 21 nodes in that example came back `unknown`, including `<a>`, `<nav>`, `<main>`, `<ul>`, `<li>`, `<table>` and `<label>`, so a screen reader got nothing useful for navigation or lists.
-
-That is fixed upstream: [blitz#550](https://github.com/DioxusLabs/blitz/pull/550) adds the HTML-AAM mappings and **merged the day it was sent**. Kiln pins a published Blitz, so [`tests/golden/semantics.a11y.txt`](tests/golden/semantics.a11y.txt) still records all 21 `unknown` roles — and that diff, on the next release, is the proof the fix is real rather than a link to a merged PR.
+**One gap to know about if you need this today.** Roles are currently thin: 21 nodes in that example come back `unknown`, including `<a>`, `<nav>`, `<main>`, `<ul>`, `<li>`, `<table>` and `<label>`, so a screen reader gets little useful for navigation or lists. The HTML-AAM mappings are merged upstream in [blitz#550](https://github.com/DioxusLabs/blitz/pull/550) and arrive on the next Blitz release; the golden still records the `unknown` roles until then, which is how you will see it flip.
 
 Accessibility being a golden rather than a promise is the point. It is usually an afterthought in a project like this, which is exactly why it is asserted here.
 
@@ -560,37 +531,13 @@ Dispatched input goes through the same `EventDriver` path a real mouse takes, so
 
 ## Tests read text, not pixels
 
-A PNG is a poor oracle for a DOM bug. It shows the final state and hides the sequence, it cannot say *why* a box landed where it did, and once real text layout arrives it will churn on font and antialiasing drift.
-
-So the primary artifact is a serialisation of the settled tree:
-
-```
-0/0/2/3 div.row @ 316,301 368x100.75 | display:block/flex position:static
-  0/0/2/3/1 button#dec.ghost @ 316,313 86x76 | display:block/flex position:static
-  0/0/2/3/3 div#count @ 426,301 150x100.75 | display:block/flow position:static
-    0/0/2/3/3/0 "1"
-```
-
-Goldens are driven through the same click path the CLI uses, so interaction state is part of the diff — that `"1"` is the counter after `+1 +1 -1`. The namespace marker prints only for elements *outside* the HTML namespace, which is why the bug where every element was created in the empty namespace — invisible in a screenshot, because attribute selectors still matched — would now be a one-line diff.
+A PNG is a poor oracle for a DOM bug: it shows the final state, hides the sequence, cannot say *why* a box landed where it did, and churns on font and antialiasing drift. So the primary artifact is a serialisation of the settled tree — every element's path, box, resolved `display` and `position` — driven through the same click path the CLI uses, so interaction state is part of the diff.
 
 ```bash
 cargo test
 ```
 
-## Mutations are a log, not a callback
-
-`MutationObserver` is not implemented as a standalone API. Every tree edit appends to an append-only journal, and the observer is one reader over it:
-
-| Reader | Status |
-| --- | --- |
-| `MutationObserver` | works — subtree scoping, `attributeFilter`, old values, `takeRecords`, `disconnect` |
-| Goldens | `examples/observers.html` writes observer results back into the DOM, so the text snapshot records them |
-| Restyle invalidation | the same records are the dirty-set the cascade wants |
-| DevTools, record/replay | further readers of the same stream |
-
-Parent and siblings are captured *before* each edit, because after a removal there is no walking up from an orphaned handle. And `document.mutate()` is allowed in exactly one file — a test fails the build otherwise, since one missed append would break every reader at once, silently.
-
-The headless path is not a debugging convenience. It's the deterministic reference renderer — what makes golden-image tests, CI on a machine with no display, and automated verification possible. Both paths share one document and one paint call, so they cannot drift.
+The headless renderer is what makes that possible, and it is not a debugging convenience: it shares one document and one paint call with the windowed path, so the two cannot drift.
 
 ## Shipping an app
 
@@ -604,9 +551,7 @@ $ kiln package app/index.html --name "My App" --dmg
 
 The bundle carries the Kiln runtime, your page renamed to `index.html`, and every local file it references with paths intact — so a `<link>` that worked in development still resolves inside the bundle. Double-clicking it opens your app; the runtime locates its own page relative to the executable.
 
-`--dmg`, `--deb` and `--msi` opt into an installer for the platform you're on. Each is a known directory layout plus one system tool, so there's no bundler dependency. CI builds all three on their own platforms and **installs the `.deb` with `dpkg -i`** before running the installed binary, because `dpkg-deb --contents` would not catch a broken symlink.
-
-Two empty installers once shipped green, which is why every artifact is now size-asserted rather than existence-checked: a `.msi` built from relative `File Source` paths was 5,942 bytes, and one with an external cabinet was 32,768 bytes with a 10.6 MB `.cab` sitting beside it. Both *succeeded*.
+`--dmg`, `--deb` and `--msi` opt into an installer for the platform you're on. Each is a known directory layout plus one system tool, so there's no bundler dependency. CI builds all three on their own platforms and **installs the `.deb` with `dpkg -i`** before running the installed binary, because listing an archive's contents would not catch a broken symlink.
 
 `--sign` and `--notarize` shell out to Apple's own `codesign` and `notarytool`. Both are written and **neither has ever been run end to end**, because that needs a Developer ID certificate. Treat them as untested code paths: if you sign a build and something is wrong with the flags or the ordering, you will be the one to find it. An issue with the output of `codesign --verify --deep --strict` would be a genuinely useful contribution.
 
@@ -641,45 +586,23 @@ $ cargo clippy --all-targets --all-features --locked -- -D warnings
 ```
 
 CI builds and tests on macOS, Linux and Windows, and builds an installer on
-each. Exactly one test paints — the CDP screenshot — and it is skipped on
-Windows, whose runners have no GPU adapter and where wgpu aborts the process
-rather than returning an error. Everything else is GPU-free by design.
+each.
 
-Most tree snapshots record box sizes that depend on installed fonts, so they
-only *compare* on macOS where they were blessed — though they still run
-everywhere, which is what catches panics and logic errors.
+Two goldens hold the "identical rendering" claim rather than letting it sit as
+an assertion, and both are compared byte-for-byte on **all three platforms**.
+[`examples/geometry.html`](examples/geometry.html) has no laid-out text and no
+font-relative units, so nothing is left to vary: flex grow and basis, wrapping,
+grid with `fr` and spans, absolute insets, `aspect-ratio`, min/max clamping and
+a scroll container. [`examples/text-metrics.html`](examples/text-metrics.html)
+uses a single vendored face with **no fallback anywhere**, so the same file
+feeds the same shaper everywhere — the case that matters, since a shipped app
+vendors its fonts rather than hoping the host has them.
 
-[`examples/geometry.html`](examples/geometry.html) is the exception, and it
-exists to hold the "identical rendering" claim rather than let it sit as an
-assertion. It has no laid-out text and no font-relative units, so nothing is
-left to vary, and its golden is compared on **all three platforms**. It covers
-flex grow and basis, wrapping, grid with `fr` and spans, absolute insets
-including a stretched one, `aspect-ratio`, min/max clamping, and a scroll
-container — that last one because scrollbar reservation was the most plausible
-thing to differ.
-
-It was blessed on macOS and passes byte-for-byte on Linux and Windows.
-
-[`examples/text-metrics.html`](examples/text-metrics.html) closes the other
-half. It uses a single vendored face with **no fallback anywhere**, so the same
-file feeds the same shaper on every platform — which is the case that matters,
-since a shipped app vendors its fonts rather than hoping the host has them. It
-measures advances at three sizes, letter-spacing and word-spacing, wrapping,
-an unbreakable word overflowing its box, and line-height. Its golden is also
-compared on all three, and also passes.
-
-That test is only meaningful if the vendored font is really the one being
-measured, so that was checked rather than assumed: break the `@font-face` src
-and the first box measures 65px instead of 71px, because a system face takes
-over. A page whose font silently failed to load would otherwise still produce
-a golden — one testing the host's fonts rather than the vendored one.
-
-**What this does and does not prove.** Layout and text metrics are identical to
-the quarter-pixel on macOS, Linux and Windows. It compares boxes, not pixels:
+**What that does and does not prove.** Layout and text metrics are identical to
+the quarter-pixel across the three platforms, along with the CSS report, the
+accessibility tree and the menu model. It compares boxes, not pixels:
 paint-level identity — antialiasing, hinting, subpixel positioning — is still
-unverified, and hard to verify in CI where the Windows runner has no GPU. The
-CSS report, the accessibility tree and the menu model are asserted on all three
-as well.
+unverified.
 
 ## Contributing
 
