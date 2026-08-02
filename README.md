@@ -18,6 +18,7 @@
 
 <p align="center">
   <strong>Native desktop apps from real HTML, CSS, and TypeScript &middot; rendered by our own engine &middot; no Chromium, no WebView</strong><br>
+  <sub>TypeScript is compiled by your own toolchain — Kiln runs the JavaScript that comes out, and <a href="#a-real-vite-build-runs">an unmodified Vite build works</a>.</sub><br>
   <sub><strong>This is early.</strong> An unmodified Vite React build renders, responds to clicks and hot-swaps its CSS. The CSS surface is partial, code signing is unverified, and runtime self-update is out of scope. Read <a href="#status">Status</a> before you get excited.</sub>
 </p>
 
