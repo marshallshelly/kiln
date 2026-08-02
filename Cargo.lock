@@ -2232,6 +2232,7 @@ dependencies = [
  "anyrender_vello",
  "arboard",
  "atomic_refcell",
+ "base64",
  "blitz-dom",
  "blitz-html",
  "blitz-paint",

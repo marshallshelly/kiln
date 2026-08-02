@@ -197,6 +197,23 @@ pub fn handle(method: &str, params: &Value, dom: &Dom, script: &Script) -> Value
             json!({ "computedStyle": properties })
         }
 
+        // The one thing an automation client could not do over the protocol:
+        // drive the page but never see it. Renders through the same paint call
+        // the CLI and the window use.
+        "Page.captureScreenshot" => {
+            let size = dom.viewport_size();
+            let width = size[0] as u32;
+            let height = size[1] as u32;
+
+            match dom.png_bytes(width, height, 1.0) {
+                Ok(png) => {
+                    use base64::Engine as _;
+                    json!({ "data": base64::engine::general_purpose::STANDARD.encode(png) })
+                }
+                Err(error) => json!({ "error": error.to_string() }),
+            }
+        }
+
         "Page.getFrameTree" => json!({
             "frameTree": {
                 "frame": {

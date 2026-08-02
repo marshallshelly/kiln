@@ -1248,7 +1248,7 @@ impl Dom {
             .collect()
     }
 
-    pub fn write_png(&self, path: &str, width: u32, height: u32, scale: f32) -> Result<()> {
+    pub fn png_bytes(&self, width: u32, height: u32, scale: f32) -> Result<Vec<u8>> {
         use anyrender::ImageRenderer;
 
         self.resolve();
@@ -1260,17 +1260,23 @@ impl Dom {
             &mut pixels,
         );
 
-        let file = std::fs::File::create(path).with_context(|| format!("create {path}"))?;
-        let mut encoder = png::Encoder::new(std::io::BufWriter::new(file), width, height);
-        encoder.set_color(png::ColorType::Rgba);
-        encoder.set_depth(png::BitDepth::Eight);
-        encoder
-            .write_header()
-            .context("write png header")?
-            .write_image_data(&pixels)
-            .context("write png data")?;
+        let mut out = Vec::new();
+        {
+            let mut encoder = png::Encoder::new(&mut out, width, height);
+            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_depth(png::BitDepth::Eight);
+            encoder
+                .write_header()
+                .context("write png header")?
+                .write_image_data(&pixels)
+                .context("write png data")?;
+        }
+        Ok(out)
+    }
 
-        Ok(())
+    pub fn write_png(&self, path: &str, width: u32, height: u32, scale: f32) -> Result<()> {
+        let bytes = self.png_bytes(width, height, scale)?;
+        std::fs::write(path, bytes).with_context(|| format!("create {path}"))
     }
 }
 

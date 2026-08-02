@@ -1197,6 +1197,53 @@ mod snapshot_tests {
     }
 
     #[test]
+    fn devtools_captures_a_screenshot() {
+        use base64::Engine as _;
+        use serde_json::json;
+
+        let (dom, script, _native) = load("examples/counter.html").unwrap();
+        dom.settle(&script);
+
+        let result = devtools::handle("Page.captureScreenshot", &json!({}), &dom, &script);
+        let data = result["data"].as_str().expect("a data field");
+        let png = base64::engine::general_purpose::STANDARD
+            .decode(data)
+            .expect("valid base64");
+
+        assert_eq!(
+            &png[..8],
+            b"\x89PNG\r\n\x1a\n",
+            "the payload is a PNG, not an error page"
+        );
+
+        let width = u32::from_be_bytes(png[16..20].try_into().unwrap());
+        let height = u32::from_be_bytes(png[20..24].try_into().unwrap());
+        assert_eq!((width, height), (DEFAULT_WIDTH, DEFAULT_HEIGHT));
+
+        // A size threshold would not discriminate: a blank 1000x700 render is
+        // still several kilobytes of PNG. Changing the page and capturing again
+        // is what proves the pixels came from this document.
+        let node = dom.query_selector("#inc").unwrap();
+        let (x, y) = dom.center_of(node).unwrap();
+        for event in [
+            events::pointer_button(x, y, MouseButton::Left, ElementState::Pressed),
+            events::pointer_button(x, y, MouseButton::Left, ElementState::Released),
+        ] {
+            for dispatch in dom.drive(event) {
+                script.dispatch(&dispatch).unwrap();
+            }
+        }
+        dom.settle(&script);
+
+        let after = devtools::handle("Page.captureScreenshot", &json!({}), &dom, &script);
+        assert_ne!(
+            after["data"].as_str().unwrap(),
+            data,
+            "the screenshot tracks the live document, not a blank canvas"
+        );
+    }
+
+    #[test]
     fn devtools_protocol_answers_the_core_domains() {
         use serde_json::json;
 
