@@ -90,7 +90,8 @@ None of this is compared against Electron or Tauri, because nothing here runs th
 
 ## Getting started
 
-There is no published crate yet, so install from the repository:
+The `kiln` name on crates.io is already taken, so installation is from the
+repository:
 
 ```console
 $ cargo install --git https://github.com/marshallshelly/kiln
