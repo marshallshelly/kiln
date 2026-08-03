@@ -420,7 +420,7 @@ Thai, Lao, Khmer and Burmese have no spaces between words, so they need dictiona
 
 Still missing: **`text-overflow: ellipsis` clips without drawing the ellipsis.** It isn't implemented in Parley, so it needs truncation support upstream first.
 
-**Font fallback also has a hole in the symbol ranges.** `▸ ▾ ✓ ⇒` render as missing-glyph boxes where `▶ ▼ ★ → •` are fine — and the fonts that have them are installed, since naming Menlo or STIXGeneral explicitly renders all three. That is what puts the box on the `<details>` marker in the screenshot above: Blitz picks `▸` for `disclosure-closed` and the inside-marker path never asks for the bullet font it bundles for exactly this. Fixed upstream in [blitz#600](https://github.com/DioxusLabs/blitz/pull/600); the wider fallback gap is Parley's and is not filed yet.
+**Font fallback also has a hole in the symbol ranges.** `▸ ▾ ✓ ⇒` render as missing-glyph boxes where `▶ ▼ ★ → •` are fine — and the fonts that have them are installed, since naming Menlo or STIXGeneral explicitly renders all three. That is what puts the box on the `<details>` marker in the screenshot above: Blitz picks `▸` for `disclosure-closed` and the inside-marker path never asks for the bullet font it bundles for exactly this. **Merged upstream** as [blitz#600](https://github.com/DioxusLabs/blitz/pull/600), so the marker arrives on the next Blitz release — this repo pins a published version, which is why the screenshot still shows the box. The wider fallback gap is Parley's and is not filed yet.
 
 ## Animation
 
