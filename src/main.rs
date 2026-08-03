@@ -883,7 +883,7 @@ fn package(input: &str, args: &[String]) -> Result<()> {
     Ok(())
 }
 
-fn check(inputs: &[String]) -> Result<()> {
+fn check(inputs: &[String]) -> Result<usize> {
     let mut total = check::Report::default();
     let mut out = String::from("\n");
 
@@ -904,7 +904,7 @@ fn check(inputs: &[String]) -> Result<()> {
             total.percent()
         );
     }
-    Ok(())
+    Ok(total.findings.len())
 }
 
 /// Where a packaged app keeps its page, relative to the executable. macOS puts
@@ -1042,7 +1042,10 @@ fn main() -> Result<()> {
             if inputs.is_empty() {
                 usage()
             }
-            check(&inputs)
+            match check(&inputs)? {
+                0 => Ok(()),
+                _ => std::process::exit(1),
+            }
         }
         Some(other) => bail!("unknown command: {other}"),
         None => match bundled_entry() {
@@ -1706,6 +1709,26 @@ mod snapshot_tests {
             "var li = document.createElement(\"li\"); li.textContent = \"{label}\"; \
              document.getElementById(\"o\").appendChild(li);"
         )
+    }
+
+    #[test]
+    fn check_reports_a_count_a_shell_can_act_on() {
+        let clean = check(&["examples/counter.html".to_string()]).unwrap();
+        assert_eq!(clean, 0, "a page inside the subset has nothing to report");
+
+        let dirty = check(&["examples/unsupported.css".to_string()]).unwrap();
+        assert!(
+            dirty > 0,
+            "unsupported.css has findings, so the command must exit non-zero — \
+             a check that always succeeds cannot gate anything"
+        );
+
+        let both = check(&[
+            "examples/counter.html".to_string(),
+            "examples/unsupported.css".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(both, dirty, "findings accumulate across every input");
     }
 
     #[test]

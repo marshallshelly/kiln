@@ -209,7 +209,13 @@ $ kiln check examples/unsupported.css
          examples/unsupported.css:10:3
 ```
 
-It runs over `.css` files and the `<style>` blocks inside `.html`, and it is tested in both directions: [`tests/golden/check.txt`](tests/golden/check.txt) pins that report, and another test asserts every committed example stays inside the subset.
+It runs over `.css` files and the `<style>` blocks inside `.html`, and **exits 1 when it finds anything**, so it works as a gate rather than only as a report:
+
+```console
+$ kiln check dist/index.html && kiln package dist/index.html
+```
+
+It is tested in both directions: [`tests/golden/check.txt`](tests/golden/check.txt) pins that report, and another test asserts every committed example stays inside the subset.
 
 A silently ignored property is the fastest way to destroy trust in an engine like this: you write correct CSS, see wrong pixels, and blame yourself. Making the gap explicit and teachable turns an incomplete engine into a legible one.
 
