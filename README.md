@@ -10,6 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/marshallshelly/kiln?style=flat-square&color=0B1226&label=stars" alt="Stars">
+  <a href="https://crates.io/crates/kiln-app"><img src="https://img.shields.io/crates/v/kiln-app?style=flat-square&color=F5A93C&label=crates.io" alt="crates.io"></a>
   <img src="https://img.shields.io/badge/status-early-F5A93C?style=flat-square" alt="Status: early">
   <img src="https://github.com/marshallshelly/kiln/actions/workflows/ci.yml/badge.svg" alt="CI">
   <img src="https://img.shields.io/badge/built%20with-Rust-0B1226?style=flat-square" alt="Built with Rust">
@@ -90,12 +91,12 @@ None of this is compared against Electron or Tauri, because nothing here runs th
 
 ## Getting started
 
-The `kiln` name on crates.io is already taken, so installation is from the
-repository:
-
 ```console
-$ cargo install --git https://github.com/marshallshelly/kiln
+$ cargo install kiln-app
 ```
+
+The crate is `kiln-app` because crates.io's `kiln` was claimed years ago by an
+unrelated placeholder. The command it installs is `kiln`.
 
 Or build it locally, which is what you want if you plan to change anything:
 
