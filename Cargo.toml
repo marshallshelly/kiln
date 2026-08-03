@@ -1,5 +1,5 @@
 [package]
-name = "kiln"
+name = "kiln-app"
 version = "0.1.0"
 edition = "2024"
 description = "Native desktop apps from real HTML, CSS and TypeScript, rendered without Chromium or a WebView"
@@ -8,6 +8,10 @@ repository = "https://github.com/marshallshelly/kiln"
 readme = "README.md"
 keywords = ["desktop", "gui", "html", "css", "renderer"]
 categories = ["gui", "command-line-utilities"]
+
+[[bin]]
+name = "kiln"
+path = "src/main.rs"
 
 [dependencies]
 accesskit = "0.24"
