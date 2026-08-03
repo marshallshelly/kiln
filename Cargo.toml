@@ -8,6 +8,7 @@ repository = "https://github.com/marshallshelly/kiln"
 readme = "README.md"
 keywords = ["desktop", "gui", "html", "css", "renderer"]
 categories = ["gui", "command-line-utilities"]
+exclude = ["assets/", "bench/", ".github/"]
 
 [[bin]]
 name = "kiln"
