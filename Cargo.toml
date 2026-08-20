@@ -1,6 +1,6 @@
 [package]
 name = "kiln-app"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Native desktop apps from real HTML, CSS and TypeScript, rendered without Chromium or a WebView"
 license = "Apache-2.0"
