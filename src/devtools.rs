@@ -191,8 +191,10 @@ pub fn handle(method: &str, params: &Value, dom: &Dom, script: &Script) -> Value
             let id = params["nodeId"].as_u64().unwrap_or(0) as usize;
             let flat = dom.computed_style(id);
             let properties: Vec<Value> = flat
-                .chunks_exact(2)
-                .map(|pair| json!({ "name": pair[0], "value": pair[1] }))
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|[name, value]| json!({ "name": name, "value": value }))
                 .collect();
             json!({ "computedStyle": properties })
         }
@@ -317,8 +319,8 @@ fn outer_html(dom: &Dom, id: usize) -> String {
     };
 
     let mut out = format!("<{tag}");
-    for pair in dom.attributes(id).chunks_exact(2) {
-        out.push_str(&format!(" {}=\"{}\"", pair[0], pair[1]));
+    for [name, value] in dom.attributes(id).as_chunks::<2>().0 {
+        out.push_str(&format!(" {name}=\"{value}\""));
     }
     out.push('>');
     for child in dom.children(id) {

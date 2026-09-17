@@ -187,7 +187,7 @@ fn build_item(node: &MenuNode) -> Result<Box<dyn muda::IsMenuItem>> {
 fn parse_menu(flat: &[String]) -> Vec<MenuNode> {
     let mut roots: Vec<MenuNode> = Vec::new();
 
-    for entry in flat.chunks_exact(5) {
+    for entry in flat.as_chunks::<5>().0 {
         let depth: usize = entry[0].parse().unwrap_or(0);
         let node = MenuNode {
             id: entry[1].clone(),
