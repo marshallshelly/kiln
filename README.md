@@ -454,13 +454,19 @@ host.
 `kiln check` cannot warn about this: it reads CSS and the document, and this is a
 fact about the *text content*.
 
+The underlying cause is that Fontique's fallback is script-based: `✓` and friends
+carry Unicode's `Common` script, so they inherit the surrounding Latin script and
+get Latin's fallback font, which does not cover them — and there is no
+per-character last-resort search behind that. Tracked upstream as
+[parley#678](https://github.com/linebender/parley/issues/678).
+
 This is also what put the box on the `<details>` marker in the screenshot above,
 though that half had a different cause and is already fixed: Blitz picks `▸` for
 `disclosure-closed`, and the inside-marker path never asked for the bullet font
 it bundles for exactly this. **Merged upstream** as
 [blitz#600](https://github.com/DioxusLabs/blitz/pull/600), arriving on the next
 Blitz release — this repo pins a published version, which is why the screenshot
-still shows the box. The wider fallback gap is Parley's.
+still shows the box. The wider fallback gap is Fontique's.
 
 ## Animation
 
