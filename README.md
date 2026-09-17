@@ -47,7 +47,7 @@ Honesty is the product, so here is the unflattering version.
 | CSS coverage | partial — `float`, tables, `position: sticky`, `:has()`, `@container` and subgrid are out. [`kiln check`](#the-subset) names every gap rather than failing silently |
 | `position: fixed`, nested `position: absolute` | resolve against the wrong box. Both are upstream bugs, both are [reported by `kiln check`](#position-fixed-is-honest-about-being-wrong) |
 | `text-overflow: ellipsis` | clips without drawing the ellipsis — needs truncation support in Parley first |
-| Symbol glyphs | font fallback misses parts of the symbol ranges — `▸ ▾ ✓ ⇒` come out as missing-glyph boxes while `▶ ▼ ★ → •` are fine. Naming a font that has them works; the fallback chain just doesn't reach it |
+| Symbol glyphs | font fallback misses parts of the symbol ranges — `▸ ▾ ✓ ⇒` come out as missing-glyph boxes while `▶ ▼ ★ → •` are fine. **Workaround:** add a font that has them to your `font-family` stack — [details below](#symbol-glyphs-need-a-font-in-the-stack) |
 | Code signing | `--sign` and `--notarize` are written but **have never been run with a real certificate**. If you sign a macOS build, you are the first |
 | IME | wired, never tested against a real input method |
 | Runtime self-update | out of scope — an app replaces its own assets, not its binary |
@@ -428,7 +428,39 @@ Thai, Lao, Khmer and Burmese have no spaces between words, so they need dictiona
 
 Still missing: **`text-overflow: ellipsis` clips without drawing the ellipsis.** It isn't implemented in Parley, so it needs truncation support upstream first.
 
-**Font fallback also has a hole in the symbol ranges.** `▸ ▾ ✓ ⇒` render as missing-glyph boxes where `▶ ▼ ★ → •` are fine — and the fonts that have them are installed, since naming Menlo or STIXGeneral explicitly renders all three. That is what puts the box on the `<details>` marker in the screenshot above: Blitz picks `▸` for `disclosure-closed` and the inside-marker path never asks for the bullet font it bundles for exactly this. **Merged upstream** as [blitz#600](https://github.com/DioxusLabs/blitz/pull/600), so the marker arrives on the next Blitz release — this repo pins a published version, which is why the screenshot still shows the box. The wider fallback gap is Parley's and is not filed yet.
+### Symbol glyphs need a font in the stack
+
+**Automatic font fallback has a hole in the symbol ranges.** `▸ ▾ ✓ ⇒` render as
+missing-glyph boxes where `▶ ▼ ★ → • ■ ●` are fine, as are CJK, Arabic and emoji.
+`✓` is the one that will find you — checkmarks are everywhere in application UI.
+
+The fonts are installed and they do load; only the *implicit* fallback fails to
+reach them. So naming one in your stack fixes it, and costs nothing else:
+
+```css
+/* Done □ ready */
+font-family: Helvetica, Arial, sans-serif;
+
+/* Done ✓ ready */
+font-family: Helvetica, Arial, Menlo, sans-serif;
+```
+
+Selection is per glyph, so the surrounding text stays in Helvetica and only the
+checkmark comes from Menlo. Any face covering the character works — Menlo,
+STIXGeneral and Arial Unicode MS all do. Vendoring one with `@font-face` is the
+portable version, since a stack naming only system fonts is a guess about the
+host.
+
+`kiln check` cannot warn about this: it reads CSS and the document, and this is a
+fact about the *text content*.
+
+This is also what put the box on the `<details>` marker in the screenshot above,
+though that half had a different cause and is already fixed: Blitz picks `▸` for
+`disclosure-closed`, and the inside-marker path never asked for the bullet font
+it bundles for exactly this. **Merged upstream** as
+[blitz#600](https://github.com/DioxusLabs/blitz/pull/600), arriving on the next
+Blitz release — this repo pins a published version, which is why the screenshot
+still shows the box. The wider fallback gap is Parley's.
 
 ## Animation
 
