@@ -2063,6 +2063,36 @@ mod snapshot_tests {
     }
 
     #[test]
+    fn script_can_scroll_an_overflow_hidden_element_but_not_a_clipped_one() {
+        let scrolled = |overflow: &str| {
+            let page = std::env::temp_dir().join(format!("kiln-overflow-{overflow}.html"));
+            std::fs::write(
+                &page,
+                format!(
+                    r##"<!doctype html><html><head><style>
+                         #box {{ width: 200px; height: 100px; overflow: {overflow} }}
+                         #tall {{ height: 800px }}
+                       </style></head><body><div id="box"><div id="tall"></div></div></body></html>"##
+                ),
+            )
+            .unwrap();
+            let (dom, script, _native) = load(page.to_str().unwrap()).unwrap();
+            dom.settle(&script);
+            let node = dom.query_selector("#box").unwrap();
+            dom.scroll_node_to(node, 0.0, 50.0);
+            dom.box_metrics(node).unwrap()[7]
+        };
+
+        assert_eq!(scrolled("auto"), 50.0);
+        assert_eq!(
+            scrolled("hidden"),
+            50.0,
+            "hidden still scrolls from script, as in Chrome"
+        );
+        assert_eq!(scrolled("clip"), 0.0, "clip is not a scroll container");
+    }
+
+    #[test]
     fn a_typed_trailing_space_survives() {
         let page = std::env::temp_dir().join("kiln-trailing-space.html");
         std::fs::write(

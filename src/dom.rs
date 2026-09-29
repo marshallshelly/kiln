@@ -991,47 +991,33 @@ impl Dom {
     pub fn scroll_node_to(&self, node_id: NodeId, x: f64, y: f64) {
         self.flush_layout();
 
-        let delta = {
-            let document = self.document.borrow();
-            let Some(node) = node_with_layout(&document, node_id) else {
+        let moved = {
+            let mut document = self.document.borrow_mut();
+            let Some(before) =
+                node_with_layout(&document, node_id).map(|node| *node.scroll_offset())
+            else {
                 return;
             };
-
-            let max_x = f64::from(node.final_layout().scroll_width());
-            let max_y = f64::from(node.final_layout().scroll_height());
-
-            (
-                node.scroll_offset().x - x.clamp(0.0, max_x),
-                node.scroll_offset().y - y.clamp(0.0, max_y),
-            )
+            document.scroll_to(node_id, x, y, blitz_dom::ScrollBehavior::Instant);
+            node_with_layout(&document, node_id).is_some_and(|node| *node.scroll_offset() != before)
         };
-
-        if delta == (0.0, 0.0) {
+        if !moved {
             return;
         }
 
-        let mut queued = Vec::new();
-        {
-            let mut document = self.document.borrow_mut();
-            document.scroll_node_by(node_id, delta.0, delta.1, |event| {
-                queued.push(crate::events::Dispatch {
-                    chain: vec![event.target],
-                    kind: "scroll",
-                    key: None,
-                    button: 0,
-                    client_x: 0.0,
-                    client_y: 0.0,
-                });
-            });
-        }
         let mut pending = self.pending.borrow_mut();
-        for dispatch in queued {
-            let already = pending
-                .iter()
-                .any(|other| other.kind == dispatch.kind && other.chain == dispatch.chain);
-            if !already {
-                pending.push(dispatch);
-            }
+        let already = pending
+            .iter()
+            .any(|other| other.kind == "scroll" && other.chain == [node_id]);
+        if !already {
+            pending.push(crate::events::Dispatch {
+                chain: vec![node_id],
+                kind: "scroll",
+                key: None,
+                button: 0,
+                client_x: 0.0,
+                client_y: 0.0,
+            });
         }
     }
 
