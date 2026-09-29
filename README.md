@@ -366,8 +366,10 @@ Only utilities the markup actually uses are reported. Tailwind ships more CSS th
 Unstyled component primitives work too. [Base UI](https://base-ui.com) `1.0.0-rc.0`'s `Menu` — trigger, portal, positioner, popup — renders and opens, on `preact/compat` rather than react-dom. The bundle is vendored in [`examples/vendor/`](examples/vendor/), so this is reproducible with no install step:
 
 ```bash
-cargo run -- render examples/baseui.html out.png
+cargo run -- render examples/baseui.html out.png --at 0.1
 ```
+
+`--at 0.1` renders the page 100ms in. Base UI positions its menus a frame or two after mounting, so at t=0 they have not been placed yet, as in a browser's first frame.
 
 That needs real layout geometry rather than stubs, which is what a component library will exercise first:
 
@@ -487,6 +489,8 @@ cargo run -- render examples/animation.html out.png --at 1.0
 </p>
 
 That is a single deterministic frame one second into a two-second timeline. The bar is 270px through a 120→420 transition with its background interpolated between amber and mint; the second box has translated 160 of 320px and faded to 0.6 opacity; the third is at its `@keyframes` height peak. A golden is blessed at exactly that instant, so a stalled clock fails the build rather than quietly rendering the first frame forever.
+
+Timers and `requestAnimationFrame` share that clock. `setTimeout(fn, 500)` fires 500ms in — in real time in a window, and in virtual time headless, where `--at` steps through every timer and every 60Hz frame up to the moment it renders.
 
 ## Scrolling, focus and typing
 

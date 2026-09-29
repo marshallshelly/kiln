@@ -263,6 +263,7 @@ impl App {
         match load_carrying(&input, carried) {
             Ok((dom, script, native)) => {
                 dom.set_viewport(self.size.0, self.size.1, self.scale);
+                dom.follow_real_time(self.started);
                 self.dom = dom;
                 self.script = script;
                 self.native = native;
@@ -329,19 +330,33 @@ impl App {
 
 impl ApplicationHandler for App {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let polling = self.watch.is_some() || self.devtools.is_some();
         if let Some(devtools) = self.devtools.as_ref() {
             devtools.pump(&self.dom, &self.script);
             if let Some(window) = self.window.as_ref() {
                 window.request_redraw();
             }
         }
-        if self.watch.is_none() && self.devtools.is_none() {
-            return;
+        if polling {
+            self.poll_reload(event_loop);
         }
-        self.poll_reload(event_loop);
-        event_loop.set_control_flow(ControlFlow::WaitUntil(
-            std::time::Instant::now() + std::time::Duration::from_millis(250),
-        ));
+        if self.script.fire_timers()
+            && let Some(window) = self.window.as_ref()
+        {
+            window.request_redraw();
+        }
+
+        let timer = self
+            .script
+            .next_timer()
+            .map(|due| self.started + std::time::Duration::from_secs_f64(due.max(0.0) / 1000.0));
+        let poll =
+            polling.then(|| std::time::Instant::now() + std::time::Duration::from_millis(250));
+        let wake = match (timer, poll) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
+        event_loop.set_control_flow(wake.map_or(ControlFlow::Wait, ControlFlow::WaitUntil));
     }
 
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
@@ -419,6 +434,32 @@ impl ApplicationHandler for App {
             _ => {}
         }
     }
+}
+
+const FRAME_MS: f64 = 1000.0 / 60.0;
+
+fn advance(dom: &Dom, script: &Script, seconds: f64) {
+    let target = seconds * 1000.0;
+    let mut frame = (dom.now_ms() / FRAME_MS).floor() * FRAME_MS + FRAME_MS;
+    loop {
+        let timer = script.next_timer().unwrap_or(f64::INFINITY);
+        let now = timer.min(frame);
+        if now > target {
+            break;
+        }
+        dom.set_time(now.max(dom.now_ms()) / 1000.0);
+        if timer <= frame {
+            script.fire_timers();
+            dom.settle(script);
+        } else {
+            frame += FRAME_MS;
+            if script.run_frame(dom.now_ms()) {
+                dom.settle(script);
+            }
+        }
+    }
+    dom.set_time(seconds);
+    dom.settle(script);
 }
 
 fn load(input: &str) -> Result<(Dom, Script, std::rc::Rc<native::Native>)> {
@@ -659,8 +700,7 @@ fn render(input: &str, output: &str, run: &Run) -> Result<()> {
 
     if let Some(seconds) = at {
         let seconds: f64 = seconds.parse().context("--at expects seconds")?;
-        dom.set_time(seconds);
-        dom.settle(&script);
+        advance(&dom, &script, seconds);
     }
 
     if script.run_frame(dom.now_ms()) {
@@ -1137,8 +1177,7 @@ mod snapshot_tests {
         }
 
         if let Some(seconds) = at {
-            dom.set_time(seconds);
-            dom.settle(&script);
+            advance(&dom, &script, seconds);
         }
 
         if script.run_frame(dom.now_ms()) {
@@ -1176,7 +1215,7 @@ mod snapshot_tests {
 
     #[test]
     fn baseui() {
-        golden("baseui", &[]);
+        golden_at("baseui", &[], Some(0.1));
     }
 
     #[test]
@@ -2080,6 +2119,48 @@ mod snapshot_tests {
 
         let actual = dom.accessibility_snapshot();
         compare("tests/golden/semantics.a11y.txt", &actual);
+    }
+
+    #[test]
+    fn timers_wait_for_their_delay_on_the_clock() {
+        let page = std::env::temp_dir().join("kiln-timers.html");
+        std::fs::write(
+            &page,
+            r##"<!doctype html><html><body><script>
+                 globalThis.log = [];
+                 setTimeout(() => log.push("late"), 500);
+                 setTimeout(() => log.push("never"), 5000);
+                 const ticks = setInterval(() => {
+                   log.push("tick " + performance.now());
+                   if (performance.now() >= 300) clearInterval(ticks);
+                 }, 100);
+                 setTimeout(() => log.push("now"), 0);
+                 globalThis.chain = 0;
+                 const again = () => { chain += 1; setTimeout(again, 0); };
+                 setTimeout(again, 0);
+               </script></body></html>"##,
+        )
+        .unwrap();
+        let (dom, script, _native) = load(page.to_str().unwrap()).unwrap();
+        dom.settle(&script);
+
+        assert_eq!(
+            script.evaluate("JSON.stringify(log)").unwrap(),
+            "\"[\\\"now\\\"]\"",
+            "only the zero-delay timer is due at t=0"
+        );
+        let settled = script.evaluate("chain").unwrap();
+        assert!(
+            settled.parse::<u32>().unwrap() < 10,
+            "a zero-delay chain is clamped rather than spinning, ran {settled}"
+        );
+
+        advance(&dom, &script, 1.0);
+        assert_eq!(
+            script.evaluate("log.join()").unwrap(),
+            "\"now,tick 100,tick 200,tick 300,late\""
+        );
+        assert_eq!(script.next_timer().map(|due| due >= 1000.0), Some(true));
     }
 
     #[test]

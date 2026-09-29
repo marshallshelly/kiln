@@ -616,23 +616,44 @@ globalThis.devicePixelRatio = 1;
 globalThis.visualViewport = null;
 
 let __timerId = 0;
+let __timerNesting = 0;
 const __timers = new Map();
-globalThis.setTimeout = (fn, delay, ...args) => {
+const __schedule = (fn, delay, args, repeat) => {
   const id = ++__timerId;
-  __timers.set(id, { fn, args, delay: delay || 0 });
+  let wait = Math.max(0, Number(delay) || 0);
+  if (__timerNesting > 5 && wait < 4) wait = 4;
+  __timers.set(id, { fn, args, wait, repeat, due: __kiln.now() + wait, nesting: __timerNesting + 1 });
   return id;
 };
+globalThis.setTimeout = (fn, delay, ...args) => __schedule(fn, delay, args, false);
+globalThis.setInterval = (fn, delay, ...args) => __schedule(fn, delay, args, true);
 globalThis.clearTimeout = (id) => { __timers.delete(id); };
-globalThis.setInterval = (fn, delay, ...args) => globalThis.setTimeout(fn, delay, ...args);
-globalThis.clearInterval = (id) => globalThis.clearTimeout(id);
+globalThis.clearInterval = globalThis.clearTimeout;
 globalThis.queueMicrotask = (fn) => { Promise.resolve().then(fn); };
-globalThis.__runTimers = () => {
-  const pending = [...__timers.entries()].sort((a, b) => a[1].delay - b[1].delay);
-  __timers.clear();
-  for (const [, t] of pending) {
-    try { t.fn(...t.args); } catch (e) { console.log("timer threw: " + (e && e.message ? e.message : e)); }
+globalThis.__nextTimer = () => {
+  let next = null;
+  for (const t of __timers.values()) if (next === null || t.due < next) next = t.due;
+  return next;
+};
+globalThis.__runTimer = (limit) => {
+  let id = null, t = null;
+  for (const [key, timer] of __timers) {
+    if (timer.due <= limit && (t === null || timer.due < t.due)) { id = key; t = timer; }
   }
-  return pending.length;
+  if (t === null) return false;
+  if (t.repeat) {
+    if (t.nesting > 5 && t.wait < 4) t.wait = 4;
+    t.due = __kiln.now() + t.wait;
+    t.nesting += 1;
+  } else {
+    __timers.delete(id);
+  }
+  __timerNesting = t.nesting;
+  try {
+    t.fn(...t.args);
+  } catch (e) { console.log("timer threw: " + (e && e.message ? e.message : e)); }
+  __timerNesting = 0;
+  return true;
 };
 
 let __rafId = 0;
@@ -1507,12 +1528,44 @@ impl Script {
     }
 
     fn run_timers(&self) -> usize {
-        self.context
-            .with(|ctx| -> rquickjs::Result<usize> {
-                let run: Function = ctx.globals().get("__runTimers")?;
-                run.call(())
+        let limit = self
+            .context
+            .with(|ctx| -> rquickjs::Result<f64> {
+                let kiln: Object = ctx.globals().get("__kiln")?;
+                let now: Function = kiln.get("now")?;
+                now.call(())
             })
-            .unwrap_or(0)
+            .unwrap_or(0.0);
+        let mut ran = 0;
+        while self
+            .context
+            .with(|ctx| -> rquickjs::Result<bool> {
+                let run: Function = ctx.globals().get("__runTimer")?;
+                run.call((limit,))
+            })
+            .unwrap_or(false)
+        {
+            self.drain_microtasks();
+            ran += 1;
+        }
+        ran
+    }
+
+    pub fn next_timer(&self) -> Option<f64> {
+        self.context
+            .with(|ctx| -> rquickjs::Result<Option<f64>> {
+                let next: Function = ctx.globals().get("__nextTimer")?;
+                next.call(())
+            })
+            .unwrap_or(None)
+    }
+
+    pub fn fire_timers(&self) -> bool {
+        let ran = self.run_timers() > 0;
+        if ran {
+            self.drain();
+        }
+        ran
     }
 
     pub fn run_frame(&self, time_ms: f64) -> bool {
