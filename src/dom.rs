@@ -394,6 +394,7 @@ pub struct Dom {
     document: Rc<RefCell<HtmlDocument>>,
     journal: Rc<RefCell<Journal>>,
     clock: Rc<std::cell::Cell<f64>>,
+    origin: Rc<std::cell::Cell<Option<std::time::Instant>>>,
     pending: Rc<RefCell<Vec<crate::events::Dispatch>>>,
     scheme: Rc<std::cell::Cell<ColorScheme>>,
 }
@@ -424,6 +425,7 @@ impl Dom {
             document: Rc::new(RefCell::new(document)),
             journal: Rc::new(RefCell::new(Journal::default())),
             clock: Rc::new(std::cell::Cell::new(0.0)),
+            origin: Rc::new(std::cell::Cell::new(None)),
             pending: Rc::new(RefCell::new(Vec::new())),
             scheme: Rc::new(std::cell::Cell::new(ColorScheme::Light)),
         }
@@ -497,6 +499,17 @@ impl Dom {
 
     pub fn set_time(&self, seconds: f64) {
         self.clock.set(seconds);
+    }
+
+    pub fn follow_real_time(&self, origin: std::time::Instant) {
+        self.origin.set(Some(origin));
+    }
+
+    pub fn now_ms(&self) -> f64 {
+        match self.origin.get() {
+            Some(origin) => origin.elapsed().as_secs_f64() * 1000.0,
+            None => self.clock.get() * 1000.0,
+        }
     }
 
     pub fn is_animating(&self) -> bool {

@@ -161,6 +161,8 @@ struct App {
 
 impl App {
     fn new(dom: Dom, script: Script, native: std::rc::Rc<native::Native>) -> Self {
+        let started = std::time::Instant::now();
+        dom.follow_real_time(started);
         Self {
             native,
             window: None,
@@ -170,7 +172,7 @@ impl App {
             cursor: PhysicalPosition::new(0.0, 0.0),
             scale: 1.0,
             size: (DEFAULT_WIDTH, DEFAULT_HEIGHT),
-            started: std::time::Instant::now(),
+            started,
             watch: None,
             devtools: None,
             failure: None,
@@ -291,10 +293,12 @@ impl App {
         if !self.renderer.is_active() {
             return;
         }
-        self.dom.set_time(self.started.elapsed().as_secs_f64());
+        let frame = self.started.elapsed().as_secs_f64();
+        self.dom.set_time(frame);
+        let ran_frame = self.script.run_frame(frame * 1000.0);
         self.dom.settle(&self.script);
 
-        let animating = self.dom.is_animating();
+        let animating = self.dom.is_animating() || ran_frame;
         let Self {
             renderer,
             dom,
@@ -648,6 +652,10 @@ fn render(input: &str, output: &str, run: &Run) -> Result<()> {
     if let Some(seconds) = at {
         let seconds: f64 = seconds.parse().context("--at expects seconds")?;
         dom.set_time(seconds);
+        dom.settle(&script);
+    }
+
+    if script.run_frame(dom.now_ms()) {
         dom.settle(&script);
     }
 
@@ -1122,6 +1130,10 @@ mod snapshot_tests {
 
         if let Some(seconds) = at {
             dom.set_time(seconds);
+            dom.settle(&script);
+        }
+
+        if script.run_frame(dom.now_ms()) {
             dom.settle(&script);
         }
 
@@ -2060,6 +2072,36 @@ mod snapshot_tests {
 
         let actual = dom.accessibility_snapshot();
         compare("tests/golden/semantics.a11y.txt", &actual);
+    }
+
+    #[test]
+    fn animation_frames_run_on_the_clock_once_per_frame() {
+        let page = std::env::temp_dir().join("kiln-raf.html");
+        std::fs::write(
+            &page,
+            r##"<!doctype html><html><body><script>
+                 globalThis.start = performance.now();
+                 globalThis.frames = [];
+                 const tick = (t) => { frames.push(t); requestAnimationFrame(tick); };
+                 requestAnimationFrame(tick);
+               </script></body></html>"##,
+        )
+        .unwrap();
+        let (dom, script, _native) = load(page.to_str().unwrap()).unwrap();
+        dom.settle(&script);
+
+        dom.set_time(1.5);
+        assert_eq!(script.evaluate("performance.now()").unwrap(), "1500");
+        assert!(script.run_frame(dom.now_ms()));
+        dom.set_time(2.0);
+        assert!(script.run_frame(dom.now_ms()));
+
+        assert_eq!(script.evaluate("start").unwrap(), "0");
+        assert_eq!(
+            script.evaluate("JSON.stringify(frames)").unwrap(),
+            "\"[1500,2000]\"",
+            "one callback per frame, stamped with the clock rather than the wall"
+        );
     }
 
     #[test]

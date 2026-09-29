@@ -639,12 +639,15 @@ let __rafId = 0;
 const __rafQueue = new Map();
 globalThis.requestAnimationFrame = (fn) => { const id = ++__rafId; __rafQueue.set(id, fn); return id; };
 globalThis.cancelAnimationFrame = (id) => { __rafQueue.delete(id); };
-globalThis.__runFrame = () => {
-  const pending = [...__rafQueue.entries()];
+globalThis.__runFrame = (time) => {
+  const pending = [...__rafQueue.values()];
   __rafQueue.clear();
-  for (const [, fn] of pending) { fn(Date.now()); }
+  for (const fn of pending) {
+    try { fn(time); } catch (e) { console.log("requestAnimationFrame threw: " + (e && e.message ? e.message : e)); }
+  }
   return pending.length;
 };
+globalThis.performance = { now: () => __kiln.now(), timeOrigin: performance.timeOrigin };
 
 let __observerSeq = 0;
 const __observers = new Map();
@@ -779,7 +782,7 @@ globalThis.__runIntersections = () => {
       entry.targets.set(nodeId, index);
       entries.push({
         target: __wrap(nodeId),
-        time: Date.now(),
+        time: performance.now(),
         isIntersecting: intersecting,
         intersectionRatio: ratio,
         boundingClientRect: __rect(box.x, box.y, box.width, box.height),
@@ -1468,6 +1471,7 @@ impl Script {
                     Function::new(ctx.clone(), crate::update::apply_binding)?,
                 )?;
                 bind!("viewportSize", d, move || d.viewport_size());
+                bind!("now", d, move || d.now_ms());
                 bind!("computedStyle", d, move |id: u64| d
                     .computed_style(NodeId::from_u64(id)));
 
@@ -1509,6 +1513,20 @@ impl Script {
                 run.call(())
             })
             .unwrap_or(0)
+    }
+
+    pub fn run_frame(&self, time_ms: f64) -> bool {
+        let ran = self
+            .context
+            .with(|ctx| -> rquickjs::Result<usize> {
+                let run: Function = ctx.globals().get("__runFrame")?;
+                run.call((time_ms,))
+            })
+            .unwrap_or(0);
+        if ran > 0 {
+            self.drain();
+        }
+        ran > 0
     }
 
     pub fn run_observers(&self) -> usize {
