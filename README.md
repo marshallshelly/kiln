@@ -51,33 +51,35 @@ Honesty is the product, so here is the unflattering version.
 | Code signing | `--sign` and `--notarize` are written but **have never been run with a real certificate**. If you sign a macOS build, you are the first |
 | IME | wired, never tested against a real input method |
 | Runtime self-update | out of scope — an app replaces its own assets, not its binary |
-| Memory and cold start | 117 MB idle, 175 ms to first paint. Both are well over target, and the numbers are below |
+| Memory and cold start | about 103–111 MB idle, 180–215 ms to first paint. Both are well over target, and the numbers are below |
 
 ### The numbers
 
 Measured rather than estimated, with [`bench/run.sh`](bench/run.sh) in this repo. Apple M3 Pro, macOS, release build.
 
 ```
-  binary, as built                   32.9 MB
-  binary, stripped                   26.9 MB
-  peak RSS, check (no GPU)           26.6 MB
-  peak RSS, headless render          56.0 MB
-  headless render, best of 5          114 ms
-  window, first paint (warm)        175.1 ms
-  window, idle RSS                  117.2 MB
+  binary, as built                   33.4 MB
+  binary, stripped                   27.2 MB
+  peak RSS, check (no GPU)           25.8 MB
+  peak RSS, headless render          53.3 MB
+  headless render, best of 5          108 ms
+  window, first paint (warm)        180.0 ms
+  window, idle RSS                  110.7 MB
 ```
 
 **Two of the three targets are missed, and by a lot.** The premise of not shipping a browser was a binary of 20 MB rather than 200, a boot of 15 ms rather than 900, and 30 MB of resident memory rather than 400.
 
 | | target | actual | |
 |---|---|---|---|
-| binary | 20 MB | 26.9 MB stripped | close |
-| first paint | 15 ms | 175 ms | **12× over** |
-| idle RSS | 30 MB | 117 MB | **4× over** |
+| binary | 20 MB | 27.2 MB stripped | close |
+| first paint | 15 ms | 180–215 ms | **12–14× over** |
+| idle RSS | 30 MB | 103–111 MB | **about 3.5× over** |
 
-The size target is roughly met, and the trajectory is documented: 25.1 MB before Thai line breaking, 28.8 MB after, 30.0 MB after the native surfaces, 32.9 MB now. Every increase was a named feature.
+The window numbers move a lot between runs of the same binary: two back-to-back runs gave 180 and 213 ms to first paint, and 111 and 103 MB idle. So they are ranges, not figures to quote to the millisecond. The other rows held within 0.2 MB and a few milliseconds.
 
-The other two are the GPU stack, and the split says so. `kiln check` parses, cascades and lays out with no renderer at all: **26.6 MB**. Adding wgpu and Vello for a headless render takes it to **56.0 MB**. A real window with a swapchain reaches **117 MB**. So roughly a quarter of resident memory is the engine this project actually writes, and the rest is the renderer it assembles.
+The size target is roughly met, and the trajectory is documented: 25.1 MB before Thai line breaking, 28.8 MB after, 30.0 MB after the native surfaces, 32.9 MB before the move to Blitz 0.3.0-beta.2, 33.4 MB now. Every increase was a named feature.
+
+The other two are the GPU stack, and the split says so. `kiln check` parses, cascades and lays out with no renderer at all: **25.8 MB**. Adding wgpu and Vello for a headless render takes it to **53.3 MB**. A real window with a swapchain reaches **103–111 MB**. So roughly a quarter of resident memory is the engine this project actually writes, and the rest is the renderer it assembles.
 
 **The first launch is far worse than the steady state, and the cause is now known.** It is Vello's shaders being compiled for the GPU and cached by the OS. Move macOS's Metal shader cache aside and the next launch takes **1949 ms**; the one straight after it, with the cache repopulated, takes **233 ms**. That is the whole gap.
 
