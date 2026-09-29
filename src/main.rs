@@ -2122,6 +2122,72 @@ mod snapshot_tests {
     }
 
     #[test]
+    fn inline_and_property_handlers_run() {
+        let page = std::env::temp_dir().join("kiln-onclick.html");
+        std::fs::write(
+            &page,
+            r##"<!doctype html><html><body style="margin:0">
+                 <button id="attr" onclick="this.textContent = 'attr ' + event.type">a</button>
+                 <button id="prop">p</button>
+                 <button id="cancel" onclick="return false">c</button>
+                 <button id="broken" onclick="nope(">b</button>
+                 <script>
+                   globalThis.log = [];
+                   const prop = document.querySelector("#prop");
+                   prop.onclick = function (e) { log.push("prop " + (this === prop) + " " + e.type); };
+                   document.addEventListener("click", (e) => log.push(e.target.id + " prevented=" + e.defaultPrevented));
+                 </script>
+               </body></html>"##,
+        )
+        .unwrap();
+        let (dom, script, _native) = load(page.to_str().unwrap()).unwrap();
+        dom.settle(&script);
+        let click = |selector: &str| {
+            let node = dom.query_selector(selector).unwrap();
+            let (x, y) = dom.center_of(node).unwrap();
+            for event in [
+                events::pointer_button(x, y, MouseButton::Left, ElementState::Pressed),
+                events::pointer_button(x, y, MouseButton::Left, ElementState::Released),
+            ] {
+                for dispatch in dom.drive(event) {
+                    script.dispatch(&dispatch).unwrap();
+                }
+            }
+            dom.settle(&script);
+        };
+
+        for selector in ["#attr", "#prop", "#cancel", "#broken"] {
+            click(selector);
+        }
+        assert_eq!(
+            script
+                .evaluate("document.querySelector('#attr').textContent")
+                .unwrap(),
+            "\"attr click\""
+        );
+        assert_eq!(
+            script.evaluate("log.join('|')").unwrap(),
+            "\"attr prevented=false|prop true click|prop prevented=false|cancel prevented=true|broken prevented=false\""
+        );
+
+        script
+            .evaluate("document.querySelector('#attr').setAttribute('onclick', 'log.push(\"swapped\")'); document.querySelector('#prop').onclick = null; log.length = 0")
+            .unwrap();
+        click("#attr");
+        click("#prop");
+        assert_eq!(
+            script.evaluate("log.join('|')").unwrap(),
+            "\"swapped|attr prevented=false|prop prevented=false\""
+        );
+        assert_eq!(
+            script
+                .evaluate("typeof document.querySelector('#attr').onclick")
+                .unwrap(),
+            "\"function\""
+        );
+    }
+
+    #[test]
     fn timers_wait_for_their_delay_on_the_clock() {
         let page = std::env::temp_dir().join("kiln-timers.html");
         std::fs::write(

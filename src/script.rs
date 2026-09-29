@@ -421,15 +421,36 @@ function __wrap(id) {
   return node;
 }
 
+const __handlers = new Map();
+const __handlerFor = (id, type) => {
+  const key = id + ":" + type;
+  const source = __kiln.getAttribute(id, "on" + type);
+  const known = __handlers.get(key);
+  if (known && known.source === source) return known.fn;
+  let fn = null;
+  if (source !== null) {
+    try { fn = new Function("event", source); }
+    catch (e) { console.log("on" + type + " attribute: " + (e && e.message ? e.message : e)); }
+  }
+  __handlers.set(key, { fn, source });
+  return fn;
+};
+
 for (const name of [
   "onclick", "oninput", "onchange", "onsubmit", "onkeydown", "onkeyup", "onkeypress",
   "onmousedown", "onmouseup", "onmousemove", "onmouseover", "onmouseout",
   "onmouseenter", "onmouseleave", "onfocus", "onblur", "ondblclick",
   "onpointerdown", "onpointerup", "onpointermove", "onwheel", "onscroll",
 ]) {
+  const type = name.slice(2);
   Object.defineProperty(Element.prototype, name, {
-    value: null,
-    writable: true,
+    get() { return __handlerFor(this.__id, type); },
+    set(fn) {
+      __handlers.set(this.__id + ":" + type, {
+        fn: typeof fn === "function" ? fn : null,
+        source: __kiln.getAttribute(this.__id, name),
+      });
+    },
     configurable: true,
   });
 }
@@ -501,9 +522,6 @@ globalThis.document = {
     if (!existing) return;
     const index = existing.indexOf(handler);
     if (index >= 0) existing.splice(index, 1);
-  },
-  createTreeWalker(root, whatToShow, filter) {
-    return new __TreeWalker(root || this.documentElement, whatToShow, filter);
   },
   createTreeWalker(root, whatToShow, filter) {
     return new __TreeWalker(root || this.documentElement, whatToShow, filter);
@@ -1112,6 +1130,12 @@ globalThis.__dispatch = (path, type, detail) => {
         else if (handler && typeof handler.handleEvent === "function") { handler.handleEvent(event); }
         fired = true;
       }
+    }
+    const inline = __handlerFor(id, type);
+    if (inline) {
+      event.currentTarget = __wrap(id);
+      if (inline.call(event.currentTarget, event) === false) event.defaultPrevented = true;
+      fired = true;
     }
     if (stopped) break;
   }
