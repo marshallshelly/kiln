@@ -516,6 +516,7 @@ fn load_carrying(
             }
         }
     }
+    script.eval("__documentLoaded()")?;
 
     Ok((dom, script, native))
 }
@@ -2119,6 +2120,46 @@ mod snapshot_tests {
 
         let actual = dom.accessibility_snapshot();
         compare("tests/golden/semantics.a11y.txt", &actual);
+    }
+
+    #[test]
+    fn load_events_fire_after_every_script_has_run() {
+        let log = |name: &str, body: &str, script_body: &str| {
+            let page = std::env::temp_dir().join(name);
+            std::fs::write(
+                &page,
+                format!(
+                    r##"<!doctype html><html><body {body}>
+                         <script type="module">log.push("module " + document.readyState);</script>
+                         <script>
+                           globalThis.log = ["classic " + document.readyState];
+                           document.addEventListener("DOMContentLoaded", () => log.push("document ready " + document.readyState));
+                           addEventListener("DOMContentLoaded", () => log.push("window ready"));
+                           addEventListener("load", () => log.push("load " + document.readyState));
+                           {script_body}
+                         </script>
+                       </body></html>"##
+                ),
+            )
+            .unwrap();
+            let (_dom, script, _native) = load(page.to_str().unwrap()).unwrap();
+            script.evaluate("log.join('|')").unwrap()
+        };
+
+        let expected =
+            "classic loading|module loading|document ready interactive|window ready|load complete";
+        assert_eq!(
+            log("kiln-onload.html", "", "onload = () => log.push('onload');"),
+            format!("\"{expected}|onload\"")
+        );
+        assert_eq!(
+            log(
+                "kiln-body-onload.html",
+                r#"onload="log.push('body onload')""#,
+                ""
+            ),
+            format!("\"{expected}|body onload\"")
+        );
     }
 
     #[test]

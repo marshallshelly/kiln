@@ -569,6 +569,21 @@ globalThis.dispatchEvent = (event) => {
   if (handlers) for (const h of handlers.slice()) h.call(globalThis, event);
   return true;
 };
+let __readyState = "loading";
+Object.defineProperty(globalThis.document, "readyState", { get: () => __readyState, configurable: true });
+globalThis.onload = null;
+globalThis.__documentLoaded = () => {
+  __readyState = "interactive";
+  const ready = new KilnEvent("DOMContentLoaded", { bubbles: true, target: globalThis.document });
+  __fireDocument("DOMContentLoaded", ready);
+  globalThis.dispatchEvent(ready);
+  __readyState = "complete";
+  const load = new KilnEvent("load", { target: globalThis.document, currentTarget: globalThis });
+  globalThis.dispatchEvent(load);
+  const body = __kiln.body();
+  const onload = typeof globalThis.onload === "function" ? globalThis.onload : body === null ? null : __handlerFor(body, "load");
+  if (onload) onload.call(globalThis, load);
+};
 globalThis.navigator = { userAgent: "Kiln", platform: "Kiln", maxTouchPoints: 0, clipboard: {} };
 globalThis.location = { href: "kiln://app", origin: "kiln://app", protocol: "kiln:" };
 globalThis.matchMedia = (query) => ({
