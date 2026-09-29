@@ -157,6 +157,7 @@ struct App {
     /// needs a mark inside the loop; taking it from outside would time the
     /// shell rather than the app.
     report_first_paint: bool,
+    occluded: bool,
 }
 
 impl App {
@@ -177,6 +178,7 @@ impl App {
             devtools: None,
             failure: None,
             report_first_paint: std::env::var_os("KILN_TIMING").is_some(),
+            occluded: false,
         }
     }
 
@@ -290,7 +292,7 @@ impl App {
     }
 
     fn redraw(&mut self) {
-        if !self.renderer.is_active() {
+        if !self.renderer.is_active() || self.occluded {
             return;
         }
         let frame = self.started.elapsed().as_secs_f64();
@@ -355,6 +357,12 @@ impl ApplicationHandler for App {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::Occluded(hidden) => {
+                self.occluded = hidden;
+                if !hidden && let Some(window) = self.window.as_ref() {
+                    window.request_redraw();
+                }
+            }
             WindowEvent::ThemeChanged(theme) => {
                 self.dom.set_color_scheme(scheme_of(Some(theme)));
                 if let Some(window) = self.window.as_ref() {

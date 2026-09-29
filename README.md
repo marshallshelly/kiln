@@ -77,6 +77,8 @@ Measured rather than estimated, with [`bench/run.sh`](bench/run.sh) in this repo
 
 The window numbers move a lot between runs of the same binary: two back-to-back runs gave 180 and 213 ms to first paint, and 111 and 103 MB idle. So they are ranges, not figures to quote to the millisecond. The other rows held within 0.2 MB and a few milliseconds.
 
+An animating window holds steady as well: a looping CSS animation stays around 100–115 MB. A window that is covered or on another desktop stops rendering until it is visible again, as a browser tab does — before that, it rendered hundreds of frames a second into a surface nobody could see, and memory climbed past 900 MB.
+
 The size target is roughly met, and the trajectory is documented: 25.1 MB before Thai line breaking, 28.8 MB after, 30.0 MB after the native surfaces, 32.9 MB before the move to Blitz 0.3.0-beta.2, 33.4 MB now. Every increase was a named feature.
 
 The other two are the GPU stack, and the split says so. `kiln check` parses, cascades and lays out with no renderer at all: **25.8 MB**. Adding wgpu and Vello for a headless render takes it to **53.3 MB**. A real window with a swapchain reaches **103–111 MB**. So roughly a quarter of resident memory is the engine this project actually writes, and the rest is the renderer it assembles.
