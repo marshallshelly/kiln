@@ -6,41 +6,41 @@ window
         header
           heading
             text-run value="Semantics"
-          unknown
-            unknown
+          navigation
+            link
               text-run value="One"
-            unknown
+            link
               text-run value="Two"
-        unknown
+        main
           heading
             text-run value="Controls"
           button
             text-run value="Save"
-          unknown
+          label
             text-run value="Name"
             text-input
-          unknown
+          label
             check-box
             text-run value="Subscribe"
-          unknown
+          progress-indicator
           heading
             text-run value="Grouping"
-          unknown
-            unknown
+          list
+            list-item
               text-run value="First item"
-            unknown
+            list-item
               text-run value="Second item"
-          unknown
-            unknown
-              unknown
-                unknown
+          table
+            row-group
+              row
+                column-header
                   text-run value="Key"
-                unknown
+                column-header
                   text-run value="Value"
-              unknown
-                unknown
+              row
+                cell
                   text-run value="Engine"
-                unknown
+                cell
                   text-run value="Blitz"
-        unknown
+        footer
           text-run value="Footer text"

@@ -3,6 +3,7 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc::{Receiver, Sender, channel};
 
 use anyhow::{Context, Result};
+use blitz_dom::NodeId;
 use serde_json::{Value, json};
 
 use crate::dom::Dom;
@@ -141,7 +142,7 @@ pub fn handle(method: &str, params: &Value, dom: &Dom, script: &Script) -> Value
 
         "DOM.querySelector" => {
             let selector = params["selector"].as_str().unwrap_or_default();
-            json!({ "nodeId": dom.query_selector(selector).unwrap_or(0) })
+            json!({ "nodeId": dom.query_selector(selector).map_or(0, NodeId::as_u64) })
         }
         "Runtime.evaluate" => {
             let expression = params["expression"].as_str().unwrap_or_default();
@@ -168,12 +169,12 @@ pub fn handle(method: &str, params: &Value, dom: &Dom, script: &Script) -> Value
         "DOM.requestChildNodes" => json!({}),
 
         "DOM.getOuterHTML" => {
-            let id = params["nodeId"].as_u64().unwrap_or(0) as usize;
+            let id = NodeId::from_u64(params["nodeId"].as_u64().unwrap_or(0));
             json!({ "outerHTML": outer_html(dom, id) })
         }
 
         "DOM.getBoxModel" => {
-            let id = params["nodeId"].as_u64().unwrap_or(0) as usize;
+            let id = NodeId::from_u64(params["nodeId"].as_u64().unwrap_or(0));
             match dom.client_rect(id) {
                 Some(rect) => {
                     let (x, y, w, h) = (rect[0], rect[1], rect[2], rect[3]);
@@ -188,7 +189,7 @@ pub fn handle(method: &str, params: &Value, dom: &Dom, script: &Script) -> Value
         }
 
         "CSS.getComputedStyleForNode" => {
-            let id = params["nodeId"].as_u64().unwrap_or(0) as usize;
+            let id = NodeId::from_u64(params["nodeId"].as_u64().unwrap_or(0));
             let flat = dom.computed_style(id);
             let properties: Vec<Value> = flat
                 .as_chunks::<2>()
@@ -271,7 +272,7 @@ fn value_type(value: &str) -> &'static str {
     }
 }
 
-fn node_json(dom: &Dom, id: usize, depth: i64) -> Value {
+fn node_json(dom: &Dom, id: NodeId, depth: i64) -> Value {
     let children = dom.children(id);
 
     let (node_type, node_name, local_name, node_value) = if dom.is_text(id) {
@@ -284,8 +285,8 @@ fn node_json(dom: &Dom, id: usize, depth: i64) -> Value {
     };
 
     let mut node = json!({
-        "nodeId": id,
-        "backendNodeId": id,
+        "nodeId": id.as_u64(),
+        "backendNodeId": id.as_u64(),
         "nodeType": node_type,
         "nodeName": node_name,
         "localName": local_name,
@@ -305,7 +306,7 @@ fn node_json(dom: &Dom, id: usize, depth: i64) -> Value {
     node
 }
 
-fn outer_html(dom: &Dom, id: usize) -> String {
+fn outer_html(dom: &Dom, id: NodeId) -> String {
     if dom.is_text(id) {
         return dom.text_content(id);
     }

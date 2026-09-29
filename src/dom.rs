@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use anyhow::{Context, Result};
-use blitz_dom::{DocumentConfig, EventDriver, NodeData, QualName, ns};
+use blitz_dom::{DocumentConfig, EventDriver, NodeData, NodeId, QualName, ns};
 use blitz_html::HtmlDocument;
 use blitz_traits::events::UiEvent;
 use blitz_traits::shell::{ColorScheme, Viewport};
@@ -73,7 +73,13 @@ fn keyword<T: std::fmt::Debug>(value: &T) -> String {
     result
 }
 
-fn describe(document: &HtmlDocument, node_id: usize) -> String {
+fn node_with_layout(document: &HtmlDocument, node_id: NodeId) -> Option<&blitz_dom::Node> {
+    document
+        .get_node(node_id)
+        .filter(|node| !matches!(node.data, NodeData::Text(_) | NodeData::Comment { .. }))
+}
+
+fn describe(document: &HtmlDocument, node_id: NodeId) -> String {
     let Some(element) = document
         .get_node(node_id)
         .and_then(|node| node.element_data())
@@ -148,7 +154,7 @@ fn collapse(text: &str) -> String {
 
 fn write_snapshot_node(
     document: &HtmlDocument,
-    node_id: usize,
+    node_id: NodeId,
     path: &str,
     depth: usize,
     out: &mut String,
@@ -161,7 +167,7 @@ fn write_snapshot_node(
     let indent = "  ".repeat(depth);
 
     match &node.data {
-        NodeData::Comment => return,
+        NodeData::Comment { .. } => return,
         NodeData::Text(text) => {
             let opaque = node
                 .parent
@@ -176,7 +182,7 @@ fn write_snapshot_node(
             }
             return;
         }
-        NodeData::Document => {
+        NodeData::Document(_) => {
             let _ = writeln!(out, "{indent}{path} #document");
         }
         NodeData::AnonymousBlock(_) => {
@@ -219,7 +225,7 @@ fn write_snapshot_node(
                 let _ = write!(out, " {name}={value:?}");
             }
 
-            let layout = &node.unrounded_layout;
+            let layout = node.unrounded_layout();
             let position = node.absolute_position(0.0, 0.0);
             let _ = write!(
                 out,
@@ -263,10 +269,7 @@ fn label_of(id: u64) -> String {
 }
 
 fn is_presentational(document: &HtmlDocument, id: u64) -> bool {
-    let Ok(node_id) = usize::try_from(id) else {
-        return false;
-    };
-    let Some(node) = document.get_node(node_id) else {
+    let Some(node) = document.get_node(NodeId::from_u64(id)) else {
         return false;
     };
 
@@ -320,19 +323,19 @@ fn write_accessibility_node(
 
 pub enum Mutation {
     ChildList {
-        parent: usize,
-        added: Vec<usize>,
-        removed: Vec<usize>,
-        previous_sibling: Option<usize>,
-        next_sibling: Option<usize>,
+        parent: NodeId,
+        added: Vec<NodeId>,
+        removed: Vec<NodeId>,
+        previous_sibling: Option<NodeId>,
+        next_sibling: Option<NodeId>,
     },
     Attribute {
-        target: usize,
+        target: NodeId,
         name: String,
         old_value: Option<String>,
     },
     CharacterData {
-        target: usize,
+        target: NodeId,
         old_value: String,
     },
 }
@@ -430,7 +433,7 @@ impl Dom {
         &self.journal
     }
 
-    fn siblings_of(&self, node_id: usize) -> (Option<usize>, Option<usize>) {
+    fn siblings_of(&self, node_id: NodeId) -> (Option<NodeId>, Option<NodeId>) {
         let document = self.document.borrow();
         let Some(parent) = document.get_node(node_id).and_then(|node| node.parent) else {
             return (None, None);
@@ -449,7 +452,7 @@ impl Dom {
         )
     }
 
-    fn record_detach(&self, node_id: usize) {
+    fn record_detach(&self, node_id: NodeId) {
         let Some(parent) = self.parent(node_id) else {
             return;
         };
@@ -540,7 +543,7 @@ impl Dom {
         );
     }
 
-    pub fn query_selector(&self, selector: &str) -> Option<usize> {
+    pub fn query_selector(&self, selector: &str) -> Option<NodeId> {
         self.document
             .borrow()
             .query_selector(selector)
@@ -558,23 +561,13 @@ impl Dom {
         collector.queued.take()
     }
 
-    pub fn value(&self, node_id: usize) -> Option<String> {
+    pub fn value(&self, node_id: NodeId) -> Option<String> {
         let document = self.document.borrow();
         let element = document.get_node(node_id)?.element_data()?;
-        let input = element.text_input_data()?;
-        let text = input.editor.text().to_string();
-
-        let seeded = !element
-            .attrs
-            .iter()
-            .any(|attr| attr.name.local.as_ref() == "value");
-        if seeded && let Some(trimmed) = text.strip_suffix(' ') {
-            return Some(trimmed.to_string());
-        }
-        Some(text)
+        Some(element.text_input_data()?.editor.text().to_string())
     }
 
-    pub fn set_value(&self, node_id: usize, value: &str) {
+    pub fn set_value(&self, node_id: NodeId, value: &str) {
         let mut document = self.document.borrow_mut();
         let Some(element) = document
             .get_node_mut(node_id)
@@ -588,32 +581,35 @@ impl Dom {
         input.editor.set_text(value);
     }
 
-    pub fn hover_node(&self) -> Option<usize> {
+    pub fn hover_node(&self) -> Option<NodeId> {
         self.document.borrow().get_hover_node_id()
     }
 
-    pub fn scroll(&self, anchor: Option<usize>, dx: f64, dy: f64) -> Vec<crate::events::Dispatch> {
+    pub fn scroll(&self, anchor: Option<NodeId>, dx: f64, dy: f64) -> Vec<crate::events::Dispatch> {
         let mut queued = Vec::new();
         {
             let mut document = self.document.borrow_mut();
-            document.scroll_by(anchor, dx, dy, &mut |event| {
-                queued.push(crate::events::Dispatch {
-                    chain: vec![event.target],
-                    kind: "scroll",
-                    key: None,
-                    button: 0,
-                    client_x: 0.0,
-                    client_y: 0.0,
-                });
-            });
+            match anchor {
+                Some(node_id) => document.scroll_node_by(node_id, dx, dy, |event| {
+                    queued.push(crate::events::Dispatch {
+                        chain: vec![event.target],
+                        kind: "scroll",
+                        key: None,
+                        button: 0,
+                        client_x: 0.0,
+                        client_y: 0.0,
+                    });
+                }),
+                None => document.scroll_viewport_by(dx, dy),
+            }
         }
         queued
     }
 
-    pub fn center_of(&self, node_id: usize) -> Option<(f32, f32)> {
+    pub fn center_of(&self, node_id: NodeId) -> Option<(f32, f32)> {
         let document = self.document.borrow();
-        let node = document.get_node(node_id)?;
-        let size = node.final_layout.size;
+        let node = node_with_layout(&document, node_id)?;
+        let size = node.final_layout().size;
         if size.width <= 0.0 || size.height <= 0.0 {
             return None;
         }
@@ -624,7 +620,7 @@ impl Dom {
         ))
     }
 
-    pub fn text_content(&self, node_id: usize) -> String {
+    pub fn text_content(&self, node_id: NodeId) -> String {
         let document = self.document.borrow();
         let Some(node) = document.get_node(node_id) else {
             return String::new();
@@ -642,7 +638,7 @@ impl Dom {
             .collect()
     }
 
-    pub fn set_text_content(&self, node_id: usize, value: &str) {
+    pub fn set_text_content(&self, node_id: NodeId, value: &str) {
         let target = {
             let document = self.document.borrow();
             let Some(node) = document.get_node(node_id) else {
@@ -702,19 +698,19 @@ impl Dom {
         QualName::new(None, ns!(), name.to_ascii_lowercase().into())
     }
 
-    pub fn create_element(&self, tag: &str) -> usize {
+    pub fn create_element(&self, tag: &str) -> NodeId {
         let mut document = self.document.borrow_mut();
         document
             .mutate()
             .create_element(Self::element_name(tag), Vec::new())
     }
 
-    pub fn create_text_node(&self, text: &str) -> usize {
+    pub fn create_text_node(&self, text: &str) -> NodeId {
         let mut document = self.document.borrow_mut();
         document.mutate().create_text_node(text)
     }
 
-    pub fn append_child(&self, parent: usize, child: usize) {
+    pub fn append_child(&self, parent: NodeId, child: NodeId) {
         self.record_detach(child);
         let previous_sibling = self.children(parent).last().copied();
 
@@ -732,7 +728,7 @@ impl Dom {
         });
     }
 
-    pub fn insert_before(&self, child: usize, reference: usize) {
+    pub fn insert_before(&self, child: NodeId, reference: NodeId) {
         self.record_detach(child);
         let parent = self.parent(reference);
         let (previous_sibling, _) = self.siblings_of(reference);
@@ -753,13 +749,13 @@ impl Dom {
         }
     }
 
-    pub fn remove_child(&self, child: usize) {
+    pub fn remove_child(&self, child: NodeId) {
         self.record_detach(child);
         let mut document = self.document.borrow_mut();
         document.mutate().remove_node(child);
     }
 
-    pub fn set_attribute(&self, node_id: usize, name: &str, value: &str) {
+    pub fn set_attribute(&self, node_id: NodeId, name: &str, value: &str) {
         let old_value = self.attribute(node_id, name);
         {
             let mut document = self.document.borrow_mut();
@@ -774,7 +770,7 @@ impl Dom {
         });
     }
 
-    pub fn remove_attribute(&self, node_id: usize, name: &str) {
+    pub fn remove_attribute(&self, node_id: NodeId, name: &str) {
         let old_value = self.attribute(node_id, name);
         {
             let mut document = self.document.borrow_mut();
@@ -789,7 +785,7 @@ impl Dom {
         });
     }
 
-    pub fn attribute(&self, node_id: usize, name: &str) -> Option<String> {
+    pub fn attribute(&self, node_id: NodeId, name: &str) -> Option<String> {
         let document = self.document.borrow();
         let element = document.get_node(node_id)?.element_data()?;
         element
@@ -799,7 +795,7 @@ impl Dom {
             .map(|attr| attr.value.to_string())
     }
 
-    pub fn set_style_property(&self, node_id: usize, name: &str, value: &str) {
+    pub fn set_style_property(&self, node_id: NodeId, name: &str, value: &str) {
         let old_value = self.attribute(node_id, "style");
         {
             let mut document = self.document.borrow_mut();
@@ -816,11 +812,11 @@ impl Dom {
         });
     }
 
-    pub fn parent(&self, node_id: usize) -> Option<usize> {
+    pub fn parent(&self, node_id: NodeId) -> Option<NodeId> {
         self.document.borrow().get_node(node_id)?.parent
     }
 
-    pub fn next_sibling(&self, node_id: usize) -> Option<usize> {
+    pub fn next_sibling(&self, node_id: NodeId) -> Option<NodeId> {
         let document = self.document.borrow();
         let parent = document.get_node(node_id)?.parent?;
         let children = &document.get_node(parent)?.children;
@@ -828,11 +824,11 @@ impl Dom {
         children.get(index + 1).copied()
     }
 
-    pub fn root(&self) -> usize {
+    pub fn root(&self) -> NodeId {
         self.document.borrow().root_node().id
     }
 
-    pub fn attributes(&self, node_id: usize) -> Vec<String> {
+    pub fn attributes(&self, node_id: NodeId) -> Vec<String> {
         let document = self.document.borrow();
         let Some(element) = document
             .get_node(node_id)
@@ -847,28 +843,28 @@ impl Dom {
             .collect()
     }
 
-    pub fn children(&self, node_id: usize) -> Vec<usize> {
+    pub fn children(&self, node_id: NodeId) -> Vec<NodeId> {
         self.document
             .borrow()
             .get_node(node_id)
-            .map(|node| node.children.clone())
+            .map(|node| node.children.to_vec())
             .unwrap_or_default()
     }
 
-    pub fn tag_name(&self, node_id: usize) -> Option<String> {
+    pub fn tag_name(&self, node_id: NodeId) -> Option<String> {
         let document = self.document.borrow();
         let element = document.get_node(node_id)?.element_data()?;
         Some(element.name.local.to_string())
     }
 
-    pub fn is_text(&self, node_id: usize) -> bool {
+    pub fn is_text(&self, node_id: NodeId) -> bool {
         self.document
             .borrow()
             .get_node(node_id)
             .is_some_and(|node| matches!(node.data, NodeData::Text(_)))
     }
 
-    pub fn query_selector_all(&self, root: Option<usize>, selector: &str) -> Vec<usize> {
+    pub fn query_selector_all(&self, root: Option<NodeId>, selector: &str) -> Vec<NodeId> {
         let document = self.document.borrow();
         let Ok(all) = document.query_selector_all(selector) else {
             return Vec::new();
@@ -890,11 +886,11 @@ impl Dom {
             .collect()
     }
 
-    pub fn matches(&self, node_id: usize, selector: &str) -> bool {
+    pub fn matches(&self, node_id: NodeId, selector: &str) -> bool {
         self.query_selector_all(None, selector).contains(&node_id)
     }
 
-    pub fn focus(&self, node_id: Option<usize>) {
+    pub fn focus(&self, node_id: Option<NodeId>) {
         let mut document = self.document.borrow_mut();
         match node_id {
             Some(id) => {
@@ -904,11 +900,11 @@ impl Dom {
         }
     }
 
-    pub fn active_element(&self) -> Option<usize> {
+    pub fn active_element(&self) -> Option<NodeId> {
         self.document.borrow().get_focussed_node_id()
     }
 
-    pub fn client_rect(&self, node_id: usize) -> Option<Vec<f64>> {
+    pub fn client_rect(&self, node_id: NodeId) -> Option<Vec<f64>> {
         self.flush_layout();
         let rect = self.document.borrow().get_client_bounding_rect(node_id)?;
         Some(vec![rect.x, rect.y, rect.width, rect.height])
@@ -929,16 +925,16 @@ impl Dom {
         self.flush_layout();
         let document = self.document.borrow();
 
-        let position_of = |node_id: usize| -> Option<String> {
+        let position_of = |node_id: NodeId| -> Option<String> {
             document
                 .get_node(node_id)?
                 .primary_styles()
                 .map(|style| keyword(&style.clone_position()))
         };
 
-        let padding_box_origin = |node_id: usize| -> Option<(String, String)> {
-            let node = document.get_node(node_id)?;
-            let layout = &node.unrounded_layout;
+        let padding_box_origin = |node_id: NodeId| -> Option<(String, String)> {
+            let node = node_with_layout(&document, node_id)?;
+            let layout = node.unrounded_layout();
             let origin = node.absolute_position(0.0, 0.0);
             Some((
                 quantise(origin.x + layout.border.left),
@@ -992,21 +988,21 @@ impl Dom {
         offenders
     }
 
-    pub fn scroll_node_to(&self, node_id: usize, x: f64, y: f64) {
+    pub fn scroll_node_to(&self, node_id: NodeId, x: f64, y: f64) {
         self.flush_layout();
 
         let delta = {
             let document = self.document.borrow();
-            let Some(node) = document.get_node(node_id) else {
+            let Some(node) = node_with_layout(&document, node_id) else {
                 return;
             };
 
-            let max_x = f64::from(node.final_layout.scroll_width());
-            let max_y = f64::from(node.final_layout.scroll_height());
+            let max_x = f64::from(node.final_layout().scroll_width());
+            let max_y = f64::from(node.final_layout().scroll_height());
 
             (
-                node.scroll_offset.x - x.clamp(0.0, max_x),
-                node.scroll_offset.y - y.clamp(0.0, max_y),
+                node.scroll_offset().x - x.clamp(0.0, max_x),
+                node.scroll_offset().y - y.clamp(0.0, max_y),
             )
         };
 
@@ -1039,11 +1035,11 @@ impl Dom {
         }
     }
 
-    pub fn box_metrics(&self, node_id: usize) -> Option<Vec<f64>> {
+    pub fn box_metrics(&self, node_id: NodeId) -> Option<Vec<f64>> {
         self.flush_layout();
         let document = self.document.borrow();
-        let node = document.get_node(node_id)?;
-        let layout = &node.unrounded_layout;
+        let node = node_with_layout(&document, node_id)?;
+        let layout = node.unrounded_layout();
 
         let border_width = f64::from(layout.size.width);
         let border_height = f64::from(layout.size.height);
@@ -1062,23 +1058,23 @@ impl Dom {
             border_height,
             client_width,
             client_height,
-            f64::from(layout.content_size.width).max(client_width),
-            f64::from(layout.content_size.height).max(client_height),
-            node.scroll_offset.x,
-            node.scroll_offset.y,
+            client_width + f64::from(layout.scroll_width()),
+            client_height + f64::from(layout.scroll_height()),
+            node.scroll_offset().x,
+            node.scroll_offset().y,
             f64::from(layout.border.left),
             f64::from(layout.border.top),
         ])
     }
 
-    pub fn computed_style(&self, node_id: usize) -> Vec<String> {
+    pub fn computed_style(&self, node_id: NodeId) -> Vec<String> {
         self.flush_layout();
         let document = self.document.borrow();
-        let Some(node) = document.get_node(node_id) else {
+        let Some(node) = node_with_layout(&document, node_id) else {
             return Vec::new();
         };
 
-        let layout = &node.unrounded_layout;
+        let layout = node.unrounded_layout();
         let px = |v: f32| format!("{v}px");
 
         let content_width = (layout.size.width
@@ -1229,7 +1225,7 @@ impl Dom {
         vec![f64::from(width), f64::from(height)]
     }
 
-    pub fn body(&self) -> Option<usize> {
+    pub fn body(&self) -> Option<NodeId> {
         self.query_selector("body")
     }
 

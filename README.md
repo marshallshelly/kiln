@@ -83,7 +83,7 @@ The other two are the GPU stack, and the split says so. `kiln check` parses, cas
 
 It also explains the odd part: a freshly *copied* binary was slow once and then fast, because the cache is system-wide rather than per-binary. A rebuild does not reproduce it either. So the cost is paid once per machine, by whichever Vello application runs first — not once per install of your app.
 
-Nothing in `src/` can fix that, but the shape of a fix is narrower than it first looked. Vello already accepts a `pipeline_cache`; `anyrender_vello` hardcoded it to `None` and offered no way to set one, so no consumer could opt in. Fixed upstream in [anyrender#73](https://github.com/DioxusLabs/anyrender/pull/73) and shipped in `anyrender_vello` 0.14.0 — Kiln still pins 0.12, so it is not wired up here yet.
+Nothing in `src/` can fix that, but the shape of a fix is narrower than it first looked. Vello already accepts a `pipeline_cache`; `anyrender_vello` hardcoded it to `None` and offered no way to set one, so no consumer could opt in. Fixed upstream in [anyrender#73](https://github.com/DioxusLabs/anyrender/pull/73) and shipped in `anyrender_vello` 0.14.0, which Kiln now uses — though Kiln does not pass a cache yet.
 
 That would not help on this machine anyway. `wgpu-hal`'s Metal `create_pipeline_cache` is a unit-struct stub, as are DX12 and GLES; only Vulkan builds a real one. macOS gets its speedup from the OS cache instead, which is exactly why the second launch is already fast. So the win is Linux, and on macOS the 1.9 seconds is a cost paid once per machine by whichever Vello app runs first.
 
@@ -464,9 +464,9 @@ This is also what put the box on the `<details>` marker in the screenshot above,
 though that half had a different cause and is already fixed: Blitz picks `▸` for
 `disclosure-closed`, and the inside-marker path never asked for the bullet font
 it bundles for exactly this. **Merged upstream** as
-[blitz#600](https://github.com/DioxusLabs/blitz/pull/600), arriving on the next
-Blitz release — this repo pins a published version, which is why the screenshot
-still shows the box. The wider fallback gap is Fontique's.
+[blitz#600](https://github.com/DioxusLabs/blitz/pull/600) and shipped in Blitz
+0.3.0-beta.2, which is why the screenshot above now shows `▾`. The wider fallback
+gap is Fontique's.
 
 ## Animation
 
@@ -493,7 +493,7 @@ cargo run -- render examples/input.html out.png --type "Marshall" --scroll "#lis
 ```
 
 <p align="center">
-  <img src="assets/input.png" width="720" alt="A focused text input containing the typed word Marshall with a visible caret and amber focus ring, above a scrolled list showing rows 2 through 5 with a scrollbar.">
+  <img src="assets/input.png" width="720" alt="A focused text input containing the typed word Marshall with a visible caret, an amber border and a blue focus outline, above a scrolled list showing rows 2 through 5 with a scrollbar.">
 </p>
 
 Nothing in that page polls. The input's `input` listener wrote the echo line, the list's `scroll` listener wrote `scrollTop: 90`, and the `:focus` border came from the cascade.
@@ -540,17 +540,24 @@ cargo run -- render examples/semantics.html out.png --a11y out.txt
 ```
 
 ```
-window
-  header
-    heading
-      text-run value="Semantics"
+header
+  heading
+    text-run value="Semantics"
+  navigation
+    link
+      text-run value="One"
+main
   button
     text-run value="Save"
-  check-box
-  text-run value="Subscribe"
+  label
+    check-box
+    text-run value="Subscribe"
+  list
+    list-item
+      text-run value="First item"
 ```
 
-**One gap to know about if you need this today.** Roles are currently thin: 21 nodes in that example come back `unknown`, including `<a>`, `<nav>`, `<main>`, `<ul>`, `<li>`, `<table>` and `<label>`, so a screen reader gets little useful for navigation or lists. The HTML-AAM mappings are merged upstream in [blitz#550](https://github.com/DioxusLabs/blitz/pull/550) and arrive on the next Blitz release; the golden still records the `unknown` roles until then, which is how you will see it flip.
+Landmarks, links, lists, tables, labels and progress bars all map to their HTML-AAM roles — [blitz#550](https://github.com/DioxusLabs/blitz/pull/550), shipped in Blitz 0.3.0-beta.2. Before that, 21 nodes in that example came back `unknown`; now only `<html>` and `<body>` do. The golden recorded all 21 until the release landed, and flipping is how the fix was proven rather than taken on trust.
 
 Accessibility being a golden rather than a promise is the point. It is usually an afterthought in a project like this, which is exactly why it is asserted here.
 

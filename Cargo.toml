@@ -17,19 +17,19 @@ path = "src/main.rs"
 [dependencies]
 accesskit = "0.24"
 anyhow = "1.0.104"
-anyrender = "0.11"
-anyrender_vello = "0.12"
+anyrender = "0.13"
+anyrender_vello = "0.14"
 arboard = "3"
 atomic_refcell = "0.1.14"
-blitz-dom = { version = "0.3.0-beta.1", features = ["accessibility"] }
-blitz-html = "0.3.0-beta.1"
-blitz-paint = "0.3.0-beta.1"
-blitz-traits = "0.3.0-beta.1"
+blitz-dom = { version = "0.3.0-beta.2", features = ["accessibility"] }
+blitz-html = "0.3.0-beta.2"
+blitz-paint = "0.3.0-beta.2"
+blitz-traits = "0.3.0-beta.2"
 cssparser = "0.37"
 keyboard-types = "0.7"
 muda = "0.19"
 notify-rust = "4"
-parley = { version = "0.10", features = ["complex-scripts"] }
+parley = { version = "0.11", features = ["complex-scripts"] }
 png = "0.18.1"
 rfd = "0.17"
 rquickjs = { version = "0.12.2", features = ["macro", "futures", "loader"] }

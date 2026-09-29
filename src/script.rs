@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use anyhow::{Context as _, Result, anyhow};
+use blitz_dom::NodeId;
 use rquickjs::{Array, Context, Ctx, Function, Object, Runtime};
 
 use crate::dom::Dom;
@@ -1212,11 +1213,17 @@ fn take_mutations<'js>(ctx: Ctx<'js>, dom: &Dom, cursor: u64) -> rquickjs::Resul
                 next_sibling,
             } => {
                 entry.set("type", "childList")?;
-                entry.set("target", *parent)?;
-                entry.set("addedNodes", added.clone())?;
-                entry.set("removedNodes", removed.clone())?;
-                entry.set("previousSibling", *previous_sibling)?;
-                entry.set("nextSibling", *next_sibling)?;
+                entry.set("target", parent.as_u64())?;
+                entry.set(
+                    "addedNodes",
+                    added.iter().map(|id| id.as_u64()).collect::<Vec<_>>(),
+                )?;
+                entry.set(
+                    "removedNodes",
+                    removed.iter().map(|id| id.as_u64()).collect::<Vec<_>>(),
+                )?;
+                entry.set("previousSibling", previous_sibling.map(NodeId::as_u64))?;
+                entry.set("nextSibling", next_sibling.map(NodeId::as_u64))?;
             }
             Mutation::Attribute {
                 target,
@@ -1224,13 +1231,13 @@ fn take_mutations<'js>(ctx: Ctx<'js>, dom: &Dom, cursor: u64) -> rquickjs::Resul
                 old_value,
             } => {
                 entry.set("type", "attributes")?;
-                entry.set("target", *target)?;
+                entry.set("target", target.as_u64())?;
                 entry.set("attributeName", name.clone())?;
                 entry.set("oldValue", old_value.clone())?;
             }
             Mutation::CharacterData { target, old_value } => {
                 entry.set("type", "characterData")?;
-                entry.set("target", *target)?;
+                entry.set("target", target.as_u64())?;
                 entry.set("oldValue", old_value.clone())?;
             }
         }
@@ -1274,21 +1281,23 @@ impl Script {
                 kiln.set(
                     "querySelector",
                     Function::new(ctx.clone(), move |selector: String| {
-                        query_dom.query_selector(&selector)
+                        query_dom.query_selector(&selector).map(NodeId::as_u64)
                     })?,
                 )?;
 
                 let get_dom = dom.clone();
                 kiln.set(
                     "getText",
-                    Function::new(ctx.clone(), move |id: usize| get_dom.text_content(id))?,
+                    Function::new(ctx.clone(), move |id: u64| {
+                        get_dom.text_content(NodeId::from_u64(id))
+                    })?,
                 )?;
 
                 let set_dom = dom.clone();
                 kiln.set(
                     "setText",
-                    Function::new(ctx.clone(), move |id: usize, value: String| {
-                        set_dom.set_text_content(id, &value);
+                    Function::new(ctx.clone(), move |id: u64, value: String| {
+                        set_dom.set_text_content(NodeId::from_u64(id), &value);
                     })?,
                 )?;
 
@@ -1300,54 +1309,85 @@ impl Script {
                 }
 
                 bind!("createElement", d, move |tag: String| d
-                    .create_element(&tag));
+                    .create_element(&tag)
+                    .as_u64());
                 bind!("createText", d, move |text: String| d
-                    .create_text_node(&text));
-                bind!("appendChild", d, move |parent: usize, child: usize| d
-                    .append_child(parent, child));
-                bind!("insertBefore", d, move |child: usize, reference: usize| d
-                    .insert_before(child, reference));
-                bind!("removeChild", d, move |child: usize| d.remove_child(child));
+                    .create_text_node(&text)
+                    .as_u64());
+                bind!("appendChild", d, move |parent: u64, child: u64| d
+                    .append_child(
+                        NodeId::from_u64(parent),
+                        NodeId::from_u64(child)
+                    ));
+                bind!("insertBefore", d, move |child: u64, reference: u64| d
+                    .insert_before(
+                        NodeId::from_u64(child),
+                        NodeId::from_u64(reference)
+                    ));
+                bind!("removeChild", d, move |child: u64| d
+                    .remove_child(NodeId::from_u64(child)));
                 bind!(
                     "setAttribute",
                     d,
-                    move |id: usize, name: String, value: String| d
-                        .set_attribute(id, &name, &value)
+                    move |id: u64, name: String, value: String| d.set_attribute(
+                        NodeId::from_u64(id),
+                        &name,
+                        &value
+                    )
                 );
-                bind!("removeAttribute", d, move |id: usize, name: String| d
-                    .remove_attribute(id, &name));
-                bind!("getAttribute", d, move |id: usize, name: String| d
-                    .attribute(id, &name));
+                bind!("removeAttribute", d, move |id: u64, name: String| d
+                    .remove_attribute(NodeId::from_u64(id), &name));
+                bind!("getAttribute", d, move |id: u64, name: String| d
+                    .attribute(NodeId::from_u64(id), &name));
                 bind!(
                     "setStyle",
                     d,
-                    move |id: usize, name: String, value: String| d
-                        .set_style_property(id, &name, &value)
+                    move |id: u64, name: String, value: String| d.set_style_property(
+                        NodeId::from_u64(id),
+                        &name,
+                        &value
+                    )
                 );
-                bind!("parent", d, move |id: usize| d.parent(id));
-                bind!("nextSibling", d, move |id: usize| d.next_sibling(id));
-                bind!("children", d, move |id: usize| d.children(id));
-                bind!("tagName", d, move |id: usize| d.tag_name(id));
-                bind!("isText", d, move |id: usize| d.is_text(id));
-                bind!("body", d, move || d.body());
+                bind!("parent", d, move |id: u64| d
+                    .parent(NodeId::from_u64(id))
+                    .map(NodeId::as_u64));
+                bind!("nextSibling", d, move |id: u64| d
+                    .next_sibling(NodeId::from_u64(id))
+                    .map(NodeId::as_u64));
+                bind!("children", d, move |id: u64| d
+                    .children(NodeId::from_u64(id))
+                    .into_iter()
+                    .map(NodeId::as_u64)
+                    .collect::<Vec<_>>());
+                bind!("tagName", d, move |id: u64| d
+                    .tag_name(NodeId::from_u64(id)));
+                bind!("isText", d, move |id: u64| d.is_text(NodeId::from_u64(id)));
+                bind!("body", d, move || d.body().map(NodeId::as_u64));
                 bind!(
                     "querySelectorIn",
                     d,
-                    move |root: Option<usize>, sel: String| d
-                        .query_selector_all(root, &sel)
+                    move |root: Option<u64>, sel: String| d
+                        .query_selector_all(root.map(NodeId::from_u64), &sel)
                         .first()
-                        .copied()
+                        .map(|id| id.as_u64())
                 );
                 bind!(
                     "querySelectorAllIn",
                     d,
-                    move |root: Option<usize>, sel: String| d.query_selector_all(root, &sel)
+                    move |root: Option<u64>, sel: String| d
+                        .query_selector_all(root.map(NodeId::from_u64), &sel)
+                        .into_iter()
+                        .map(NodeId::as_u64)
+                        .collect::<Vec<_>>()
                 );
-                bind!("matches", d, move |id: usize, sel: String| d
-                    .matches(id, &sel));
-                bind!("focus", d, move |id: Option<usize>| d.focus(id));
-                bind!("activeElement", d, move || d.active_element());
-                bind!("getValue", d, move |id: usize| d.value(id));
+                bind!("matches", d, move |id: u64, sel: String| d
+                    .matches(NodeId::from_u64(id), &sel));
+                bind!("focus", d, move |id: Option<u64>| d
+                    .focus(id.map(NodeId::from_u64)));
+                bind!("activeElement", d, move || d
+                    .active_element()
+                    .map(NodeId::as_u64));
+                bind!("getValue", d, move |id: u64| d.value(NodeId::from_u64(id)));
 
                 let menu_native = Rc::clone(&native);
                 kiln.set(
@@ -1410,12 +1450,14 @@ impl Script {
                         message_native.message(&title, &body);
                     })?,
                 )?;
-                bind!("setValue", d, move |id: usize, v: String| d
-                    .set_value(id, &v));
-                bind!("rect", d, move |id: usize| d.client_rect(id));
-                bind!("boxMetrics", d, move |id: usize| d.box_metrics(id));
-                bind!("scrollTo", d, move |id: usize, x: f64, y: f64| {
-                    d.scroll_node_to(id, x, y);
+                bind!("setValue", d, move |id: u64, v: String| d
+                    .set_value(NodeId::from_u64(id), &v));
+                bind!("rect", d, move |id: u64| d
+                    .client_rect(NodeId::from_u64(id)));
+                bind!("boxMetrics", d, move |id: u64| d
+                    .box_metrics(NodeId::from_u64(id)));
+                bind!("scrollTo", d, move |id: u64, x: f64, y: f64| {
+                    d.scroll_node_to(NodeId::from_u64(id), x, y);
                 });
                 kiln.set(
                     "updateCheck",
@@ -1426,7 +1468,8 @@ impl Script {
                     Function::new(ctx.clone(), crate::update::apply_binding)?,
                 )?;
                 bind!("viewportSize", d, move || d.viewport_size());
-                bind!("computedStyle", d, move |id: usize| d.computed_style(id));
+                bind!("computedStyle", d, move |id: u64| d
+                    .computed_style(NodeId::from_u64(id)));
 
                 bind_journal(&ctx, &kiln, dom.clone())?;
 
@@ -1620,7 +1663,8 @@ impl Script {
                 detail.set("clientY", event.client_y)?;
 
                 let dispatch: Function = ctx.globals().get("__dispatch")?;
-                dispatch.call((event.chain.clone(), event.kind, detail))
+                let chain: Vec<u64> = event.chain.iter().map(|id| id.as_u64()).collect();
+                dispatch.call((chain, event.kind, detail))
             })
             .map_err(|e| anyhow!("{e}"))
             .context("dispatch event");

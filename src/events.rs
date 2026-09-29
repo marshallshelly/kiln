@@ -16,7 +16,7 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 const LINE_HEIGHT: f64 = 20.0;
 
 pub struct Dispatch {
-    pub chain: Vec<usize>,
+    pub chain: Vec<blitz_dom::NodeId>,
     pub kind: &'static str,
     pub key: Option<String>,
     pub button: u16,
@@ -32,7 +32,7 @@ pub struct Collector {
 impl EventHandler for Collector {
     fn handle_event(
         &mut self,
-        chain: &[usize],
+        chain: &[blitz_dom::NodeId],
         event: &mut DomEvent,
         _doc: &mut dyn Document,
         _state: &mut EventState,

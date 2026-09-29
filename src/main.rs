@@ -1340,9 +1340,11 @@ mod snapshot_tests {
 
         // Find the button the way an automation client would, then click it
         // through the same EventDriver path a real mouse uses.
-        let node = call("DOM.querySelector", json!({ "selector": "#inc" }))["nodeId"]
-            .as_u64()
-            .unwrap() as usize;
+        let node = blitz_dom::NodeId::from_u64(
+            call("DOM.querySelector", json!({ "selector": "#inc" }))["nodeId"]
+                .as_u64()
+                .unwrap(),
+        );
         let (x, y) = dom.center_of(node).unwrap();
 
         for kind in ["mousePressed", "mouseReleased"] {
@@ -1438,7 +1440,7 @@ mod snapshot_tests {
         assert!(!root["children"].as_array().unwrap().is_empty());
 
         // Element nodes carry their attributes as CDP's flat name/value array.
-        let counter = dom.query_selector("#count").unwrap();
+        let counter = dom.query_selector("#count").unwrap().as_u64();
         let html = call("DOM.getOuterHTML", json!({ "nodeId": counter }));
         assert_eq!(html["outerHTML"], "<div id=\"count\">0</div>");
 
@@ -2058,6 +2060,32 @@ mod snapshot_tests {
 
         let actual = dom.accessibility_snapshot();
         compare("tests/golden/semantics.a11y.txt", &actual);
+    }
+
+    #[test]
+    fn a_typed_trailing_space_survives() {
+        let page = std::env::temp_dir().join("kiln-trailing-space.html");
+        std::fs::write(
+            &page,
+            "<!doctype html><html><body><input id=\"f\"></body></html>",
+        )
+        .unwrap();
+        let (dom, script, _native) = load(page.to_str().unwrap()).unwrap();
+        dom.settle(&script);
+
+        let field = dom.query_selector("#f").unwrap();
+        dom.focus(Some(field));
+        for ch in "hi ".chars() {
+            let ch = ch.to_string();
+            for pressed in [true, false] {
+                for dispatch in dom.drive(events::text_key(&ch, pressed)) {
+                    script.dispatch(&dispatch).unwrap();
+                }
+            }
+        }
+        dom.settle(&script);
+
+        assert_eq!(dom.value(field).as_deref(), Some("hi "));
     }
 
     #[test]
